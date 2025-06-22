@@ -122,6 +122,12 @@ app.post('/refund-payment', async (req, res) => {
   }
 });
 
+// Wildcard route to catch all other requests
+app.use('*', (req, res) => {
+  console.log(`[${new Date().toISOString()}] Wildcard route caught ${req.method} request for ${req.originalUrl}`);
+  res.status(404).json({ error: 'This route does not exist.' });
+});
+
 app.listen(port, '0.0.0.0', () => {
   console.log(`Server running on port ${port}`);
 }); 
