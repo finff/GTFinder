@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "916185525404",
+    "project_id": "gtfinder-4f012",
+    "storage_bucket": "gtfinder-4f012.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:916185525404:android:c79cf6b9533054f5725159",
+        "android_client_info": {
+          "package_name": "com.example.gtfinder"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAC4oiy2PNujskUJoPY_rGYIBA6Ph_dii8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
