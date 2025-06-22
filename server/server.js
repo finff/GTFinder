@@ -10,6 +10,12 @@ const port = process.env.PORT || 8080;
 app.use(cors());
 app.use(express.json());
 
+// Middleware to log all incoming requests
+app.use((req, res, next) => {
+  console.log(`[${new Date().toISOString()}] Received ${req.method} request for ${req.url}`);
+  next();
+});
+
 app.post('/create-payment-intent', async (req, res) => {
   try {
     const { amount } = req.body;
@@ -34,9 +40,12 @@ app.post('/create-payment-intent', async (req, res) => {
 });
 
 app.post('/capture-payment-intent', async (req, res) => {
+  console.log("--- Attempting to enter /capture-payment-intent route ---");
   try {
     const { paymentIntentId } = req.body;
+    console.log(`Attempting to capture payment intent: ${paymentIntentId}`);
     const paymentIntent = await stripe.paymentIntents.capture(paymentIntentId);
+    console.log(`Successfully captured payment intent: ${paymentIntent.id}`);
     res.json({ success: true, paymentIntent });
   } catch (e) {
     console.error('Error capturing payment intent:', e);
