@@ -189,7 +189,8 @@ class GymService {
     try {
       final results = await fetchFoursquarePlaces(userPosition.latitude, userPosition.longitude);
       
-      return results.map((place) {
+      final gyms = <GymLocation>[];
+      for (final place in results) {
         final location = place['location'] as Map<String, dynamic>;
         final distanceInMeters = Geolocator.distanceBetween(
           userPosition.latitude,
@@ -197,8 +198,11 @@ class GymService {
           location['lat'] as double,
           location['lng'] as double,
         );
+
+        // Fetch photo for this gym
+        final photoUrl = await _getFoursquarePhotoUrl(place['fsq_id'] as String);
         
-        return GymLocation(
+        gyms.add(GymLocation(
           id: place['fsq_id'] as String,
           name: place['name'] as String,
           address: place['location']['formatted_address'] as String? ?? '',
@@ -209,14 +213,41 @@ class GymService {
           isOpen: place['hours']?['is_open'] as bool? ?? false,
           phoneNumber: place['tel'] as String? ?? '',
           website: place['website'] as String? ?? '',
-          photos: [], // Foursquare requires a separate API call for photos
-          amenities: [], // Foursquare requires a separate API call for amenities
-        );
-      }).toList()
-        ..sort((a, b) => a.distance.compareTo(b.distance));
+          photos: photoUrl != null ? [photoUrl] : [], // Add the fetched photo URL
+          amenities: [],
+        ));
+      }
+
+      gyms.sort((a, b) => a.distance.compareTo(b.distance));
+      return gyms;
     } catch (e) {
       print('Error fetching nearby gyms from Foursquare: $e');
       return [];
+    }
+  }
+
+  static Future<String?> _getFoursquarePhotoUrl(String fsqId) async {
+    try {
+      final url = Uri.parse('${FoursquareConfig.baseUrl}/places/$fsqId/photos?limit=1');
+      final response = await http.get(
+        url,
+        headers: {
+          'Authorization': FoursquareConfig.apiKey,
+          'Accept': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body) as List;
+        if (data.isNotEmpty) {
+          final photo = data.first;
+          return '${photo['prefix']}original${photo['suffix']}';
+        }
+      }
+      return null;
+    } catch (e) {
+      print('Error fetching photo for Foursquare place $fsqId: $e');
+      return null;
     }
   }
 } 

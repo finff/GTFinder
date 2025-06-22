@@ -151,13 +151,34 @@ class _PaymentPageState extends State<PaymentPage> {
           style: ThemeMode.dark,
           appearance: PaymentSheetAppearance(
             colors: PaymentSheetAppearanceColors(
-              primary: const Color(0xFF1A2468),
-              background: Colors.white,
-              componentBackground: Colors.grey[200],
+              background: const Color(0xFF1A2468),    // Match the app's main background
+              primary: const Color(0xFF1A2468),       // Your primary blue for buttons
+              componentBackground: const Color(0xFF2C3E50), // Match the app's card color
+              componentBorder: Colors.transparent, // No borders for a flatter look
+              placeholderText: Colors.grey[400],
+              primaryText: Colors.white,
+              secondaryText: Colors.grey[300],
+              componentText: Colors.white,
+              icon: Colors.white,
             ),
             shapes: PaymentSheetShape(
               borderRadius: 12.0,
-              shadow: PaymentSheetShadowParams(color: Colors.black),
+              borderWidth: 1.0,
+              shadow: PaymentSheetShadowParams(color: Colors.black.withOpacity(0.2)),
+            ),
+            primaryButton: PaymentSheetPrimaryButtonAppearance(
+              colors: PaymentSheetPrimaryButtonTheme(
+                light: PaymentSheetPrimaryButtonThemeColors(
+                  background: const Color(0xFF1A2468),
+                  text: Colors.white,
+                  border: Colors.transparent,
+                ),
+                dark: PaymentSheetPrimaryButtonThemeColors(
+                  background: const Color(0xFF1A2468),
+                  text: Colors.white,
+                  border: Colors.transparent,
+                ),
+              ),
             ),
           ),
         ),
@@ -173,7 +194,7 @@ class _PaymentPageState extends State<PaymentPage> {
         // Add a timeout to prevent hanging
         await Future.any([
           Stripe.instance.presentPaymentSheet(),
-          Future.delayed(const Duration(seconds: 30), () {
+          Future.delayed(const Duration(minutes: 2), () {
             throw TimeoutException('Payment timed out');
           }),
         ]);
@@ -230,7 +251,7 @@ class _PaymentPageState extends State<PaymentPage> {
         // If we get here, payment was successful
         print('Payment successful, updating Firestore...');
         // Update Firestore in the background
-        await _updateFirestore(user.uid, userName, paymentIntent['clientSecret']);
+        await _updateFirestore(user.uid, userName, paymentIntent['paymentIntentId']);
 
         if (!mounted) return;
 

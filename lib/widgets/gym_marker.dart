@@ -20,10 +20,16 @@ class GymMarker {
     final annotationOptions = PointAnnotationOptions(
       geometry: Point(coordinates: Position(gym.longitude, gym.latitude)),
       iconImage: 'marker-15',
-      iconSize: 2.0,
+      iconSize: 1.5,
       textField: gym.name,
-      textOffset: [0.0, 2.0],
+      textOffset: [0.0, -2.5],
       textSize: 12.0,
+      textColor: Colors.white.value,
+      textJustify: TextJustify.CENTER,
+      textLetterSpacing: 1.2,
+      iconColor: Colors.blue.value,
+      iconHaloColor: Colors.white.value,
+      iconHaloWidth: 2.0,
     );
 
     await annotationManager!.create(annotationOptions);

@@ -346,78 +346,102 @@ class _GymFinderPageState extends State<GymFinderPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFF1A2468),
       appBar: AppBar(
-        title: const Text('Gym Finder'),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        title: const Text(
+          'Gym Finder',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
         actions: [
-            IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _refreshGyms,
-            ),
+          IconButton(
+            icon: const Icon(Icons.refresh, color: Colors.white),
+            onPressed: isLoading ? null : _getCurrentLocation,
+          ),
         ],
       ),
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: TextField(
-              controller: _searchController,
-              decoration: InputDecoration(
-                hintText: 'Search gyms...',
-                prefixIcon: const Icon(Icons.search),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-              ),
-              onChanged: _onSearchChanged,
-            ),
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [const Color(0xFF212E83), const Color(0xFF1A2468)],
           ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8.0),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                TextButton.icon(
-                  icon: Icon(_showMap ? Icons.list : Icons.map),
-                  label: Text(_showMap ? 'Show List' : 'Show Map'),
-                  onPressed: () {
-                    setState(() {
-                      _showMap = !_showMap;
-                    });
+        ),
+        child: SafeArea(
+          child: Column(
+            children: [
+              // Search bar
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                child: TextField(
+                  controller: _searchController,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: InputDecoration(
+                    hintText: 'Search gyms...',
+                    hintStyle: TextStyle(color: Colors.white.withOpacity(0.7)),
+                    prefixIcon: Icon(Icons.search, color: Colors.white.withOpacity(0.7)),
+                    filled: true,
+                    fillColor: Colors.white.withOpacity(0.1),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    ),
+                  ),
+                  onSubmitted: (value) {
+                    if (value.isNotEmpty) {
+                      _searchGyms(value);
+                    }
                   },
                 ),
-              ],
-            ),
-          ),
-          Expanded(
-            child: _showMap
-                ? Stack(
-                    children: [
-            MapWidget(
-                        onMapCreated: _onMapCreated,
-              styleUri: MapboxStyles.MAPBOX_STREETS,
-              cameraOptions: CameraOptions(
-                center: Point(
-                  coordinates: Position(
-                              currentPosition?.longitude ?? 101.6869,
-                              currentPosition?.latitude ?? 3.1390,
-                            ),
-                          ),
-                          zoom: 14.0,
-                        ),
-                        onMapIdleListener: _onMapIdle,
+              ),
+              
+              // Toggle button
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton.icon(
+                    icon: Icon(_showMap ? Icons.list : Icons.map, color: Colors.white),
+                    label: Text(
+                      _showMap ? 'Show List' : 'Show Map',
+                      style: const TextStyle(color: Colors.white),
+                    ),
+                    onPressed: () {
+                      setState(() {
+                        _showMap = !_showMap;
+                      });
+                    },
+                    style: TextButton.styleFrom(
+                      backgroundColor: Colors.white.withOpacity(0.1),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
                       ),
-                      if (selectedGym != null)
-                        Positioned(
-                          bottom: 16,
-                          left: 16,
-                          right: 16,
-                          child: _buildGymDetailsCard(selectedGym!),
-                        ),
-                    ],
-                  )
-                : _buildGymList(),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+
+              // Map or List view
+              Expanded(
+                child: isLoading
+                    ? const Center(child: CircularProgressIndicator(color: Colors.white))
+                    : _showMap
+                        ? ClipRRect(
+                            borderRadius: BorderRadius.circular(12),
+                            child: _buildMap(),
+                          )
+                        : _buildGymList(),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -469,7 +493,7 @@ class _GymFinderPageState extends State<GymFinderPage> {
                 category,
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.bold,
-                  color: Theme.of(context).primaryColor,
+                  color: Colors.white,
                 ),
               ),
             ),
@@ -501,7 +525,7 @@ class _GymFinderPageState extends State<GymFinderPage> {
                         ),
                         if (gym.rating > 0) ...[
                           const SizedBox(width: 8),
-                          Icon(Icons.star, size: 16, color: Colors.amber),
+                          const Icon(Icons.star, size: 16, color: Colors.amber),
                           Text(' ${gym.rating.toStringAsFixed(1)}'),
                         ],
                       ],
@@ -593,9 +617,39 @@ class _GymFinderPageState extends State<GymFinderPage> {
     });
   }
 
+  Widget _buildMap() {
+    return Stack(
+      children: [
+        MapWidget(
+          onMapCreated: _onMapCreated,
+          styleUri: MapboxStyles.MAPBOX_STREETS,
+          cameraOptions: CameraOptions(
+            center: Point(
+              coordinates: Position(
+                currentPosition?.longitude ?? 101.6869,
+                currentPosition?.latitude ?? 3.1390,
+              ),
+            ),
+            zoom: 14.0,
+          ),
+          onMapIdleListener: _onMapIdle,
+        ),
+        if (selectedGym != null)
+          Positioned(
+            bottom: 16,
+            left: 16,
+            right: 16,
+            child: _buildGymDetailsCard(selectedGym!),
+          ),
+      ],
+    );
+  }
+
   Widget _buildGymDetailsCard(GymLocation gym) {
     return Card(
       margin: const EdgeInsets.all(8),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      elevation: 5,
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -625,8 +679,11 @@ class _GymFinderPageState extends State<GymFinderPage> {
                 ),
                 if (gym.rating > 0) ...[
                   const SizedBox(width: 8),
-                  Icon(Icons.star, size: 16, color: Colors.amber),
-                  Text(' ${gym.rating.toStringAsFixed(1)}'),
+                  const Icon(Icons.star, size: 16, color: Colors.amber),
+                  Text(
+                    ' ${gym.rating.toStringAsFixed(1)}',
+                    style: const TextStyle(color: Colors.white),
+                  ),
                 ],
               ],
             ),

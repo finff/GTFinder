@@ -179,6 +179,19 @@ class AdminService {
     }
   }
 
+  // Update admin profile
+  Future<void> updateAdminProfile(String adminId, String newName) async {
+    try {
+      await _firestore
+          .collection('admins')
+          .doc(adminId)
+          .update({'name': newName});
+    } catch (e) {
+      print('Error updating admin profile: $e');
+      rethrow;
+    }
+  }
+
   // Get system settings
   Future<Map<String, dynamic>> getSystemSettings() async {
     final doc = await _firestore.collection('settings').doc('system').get();
@@ -230,33 +243,65 @@ class AdminService {
   }
 
   // Release payment to trainer
-  Future<void> releasePaymentToTrainer(String paymentId) async {
+  Future<void> releasePaymentToTrainer(
+    String paymentId, {
+    required String bookingId,
+    required String trainerId,
+    required String userId,
+    required String userName,
+    required double amount,
+  }) async {
+    final batch = _firestore.batch();
+    final escrowDocRef =
+        _firestore.collection('admin_escrow_payments').doc(paymentId);
+
     try {
-      final batch = _firestore.batch();
-
-      // Get the escrow payment data
-      final escrowDoc = await _firestore
-          .collection('admin_escrow_payments')
-          .doc(paymentId)
-          .get();
-
+      final escrowDoc = await escrowDocRef.get();
       if (!escrowDoc.exists) {
         throw 'Escrow payment not found';
       }
 
       final escrowData = escrowDoc.data()!;
-      final trainerId = escrowData['trainerId'];
-      final bookingId = escrowData['bookingId'];
+      final paymentIntentId = escrowData['paymentIntentId'];
+      
+      if (paymentIntentId == null) {
+        throw Exception('Payment Intent ID not found in the payment document.');
+      }
+      
+      // 1. Capture the payment via your backend
+      // TODO: Replace with your actual server URL
+      final url = Uri.parse('https://gt-stripe-server.onrender.com/capture-payment-intent');
+      final response = await http.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({'paymentIntentId': paymentIntentId}),
+      );
+
+      if (response.statusCode != 200) {
+        // If capture fails, log the error and stop execution.
+        String errorMessage;
+        try {
+          // Try to parse the error response as JSON
+          final errorBody = json.decode(response.body);
+          errorMessage = errorBody['error'] ?? 'Unknown error from server.';
+        } catch (e) {
+          // If parsing fails, it's likely an HTML error page (e.g., 404 Not Found)
+          errorMessage =
+              'Failed to capture payment. The server returned an unexpected response (Status code: ${response.statusCode}). Please ensure the backend is deployed and the endpoint is correct.';
+        }
+        print('Error releasing payment: $errorMessage');
+        throw Exception(errorMessage);
+      }
+      
+      // 2. If capture is successful, proceed with Firestore updates
+      print('Payment captured successfully. Proceeding with Firestore updates.');
 
       // Update admin escrow status
-      batch.update(
-        _firestore.collection('admin_escrow_payments').doc(paymentId),
-        {
-          'adminStatus': 'released',
-          'releasedAt': FieldValue.serverTimestamp(),
-          'releasedBy': _auth.currentUser?.uid,
-        },
-      );
+      batch.update(escrowDocRef, {
+        'adminStatus': 'released',
+        'releasedAt': FieldValue.serverTimestamp(),
+        'releasedBy': _auth.currentUser?.uid,
+      });
 
       // Update trainer's payment status
       batch.update(
@@ -276,7 +321,7 @@ class AdminService {
       batch.update(
         _firestore
             .collection('users')
-            .doc(escrowData['userId'])
+            .doc(userId)
             .collection('payments')
             .doc(paymentId),
         {
@@ -286,28 +331,28 @@ class AdminService {
         },
       );
 
-      // Update booking status
+      // Update booking status and add calorie sharing expiry
       final bookingUpdates = {
         'escrowStatus': 'released',
         'sessionStatus': 'completed',
         'paymentReleasedAt': FieldValue.serverTimestamp(),
+        'calorieSharingExpiry':
+            Timestamp.fromDate(DateTime.now().add(const Duration(hours: 24))),
       };
 
-      // Update booking in all collections
+      // Update booking in all relevant collections
       batch.update(
         _firestore.collection('bookings').doc(bookingId),
         bookingUpdates,
       );
-
       batch.update(
         _firestore
             .collection('users')
-            .doc(escrowData['userId'])
+            .doc(userId)
             .collection('bookings')
             .doc(bookingId),
         bookingUpdates,
       );
-
       batch.update(
         _firestore
             .collection('trainer')
@@ -319,12 +364,12 @@ class AdminService {
 
       await batch.commit();
 
-      // Create notification for trainer
+      // 3. Send notifications
       final notificationService = NotificationService();
       await notificationService.createPaymentReleasedNotification(
         trainerId: trainerId,
-        userName: escrowData['userName'],
-        amount: escrowData['amount'],
+        userName: userName,
+        amount: amount,
         bookingId: bookingId,
       );
 
@@ -827,6 +872,20 @@ class AdminService {
         .collection('admin_escrow_payments')
         .where('adminStatus', isEqualTo: 'pending_refund')
         .orderBy('lastUpdated', descending: true)
+        .snapshots()
+        .map((snapshot) => snapshot.docs.map((doc) {
+              final data = doc.data();
+              data['id'] = doc.id;
+              return data;
+            }).toList());
+  }
+
+  // Get active bookings
+  Stream<List<Map<String, dynamic>>> getActiveBookings() {
+    return _firestore
+        .collection('bookings')
+        .where('status', whereIn: ['active', 'confirmed'])
+        .orderBy('bookingDateTime', descending: true)
         .snapshots()
         .map((snapshot) => snapshot.docs.map((doc) {
               final data = doc.data();

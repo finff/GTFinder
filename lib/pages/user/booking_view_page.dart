@@ -248,96 +248,71 @@ class BookingViewPage extends StatelessWidget {
                                       const SizedBox(height: 6),
                                       _buildInfoRow(
                                         'Refund Reason',
-                                        (booking['refundReason'] ?? 'Unknown').replaceAll('_', ' ').toUpperCase(),
+                                        (booking['refundReason'] as String? ?? 'N/A').replaceAll('_', ' ').toUpperCase(),
                                       ),
-                                      if (booking['refundedAt'] != null) ...[
-                                        const SizedBox(height: 6),
+                                      const SizedBox(height: 6),
+                                      if (booking['refundedAt'] != null)
                                         _buildInfoRow(
                                           'Refunded On',
-                                          _formatDate((booking['refundedAt'] as Timestamp).toDate()),
+                                          DateFormat.yMMMd().add_jm().format((booking['refundedAt'] as Timestamp).toDate()),
                                         ),
-                                      ],
                                     ],
+                                    const SizedBox(height: 8),
                                     Row(
                                       children: [
-                                        Icon(
-                                          sharingConfirmed
-                                              ? Icons.check_circle
-                                              : Icons.cancel,
-                                          color: sharingConfirmed
-                                              ? Colors.green
-                                              : Colors.red,
-                                          size: 14,
-                                        ),
+                                        const Icon(Icons.fitness_center, color: Colors.white70, size: 16),
                                         const SizedBox(width: 4),
-                                        Expanded(
-                                          child: Text(
-                                            sharingConfirmed
-                                                ? 'Calorie data is shared'
-                                                : 'Calorie data is not shared',
-                                            style: TextStyle(
-                                              color: sharingConfirmed
-                                                  ? Colors.green
-                                                  : Colors.red,
-                                              fontSize: 11,
-                                              fontWeight: FontWeight.w500,
-                                            ),
+                                        Text(
+                                          sharingConfirmed ? 'Calorie data is shared' : 'Calorie data is not shared',
+                                          style: TextStyle(
+                                            color: sharingConfirmed ? Colors.greenAccent : Colors.orangeAccent,
+                                            fontSize: 12,
                                           ),
                                         ),
                                       ],
                                     ),
-
-                                    // Show "Pay Now" button if the booking is not yet paid.
-                                    // This handles both new bookings ('unpaid') and older bookings (null).
-                                    if (paymentStatus != 'paid' && paymentStatus != 'paid_held') ...[
-                                      const SizedBox(height: 16),
-                                      SizedBox(
-                                        width: double.infinity,
-                                        child: ElevatedButton(
-                                          onPressed: () async {
-                                            // Fetch the session fee before navigating
-                                            final sessionFee = await _getSessionFee(booking['trainerId']);
-                                            if (sessionFee > 0 && context.mounted) {
-                                              Navigator.push(
-                                                context,
-                                                MaterialPageRoute(
-                                                  builder: (context) => PaymentPage(
-                                                    bookingId: booking['bookingId'],
-                                                    trainerId: booking['trainerId'],
-                                                    trainerName: booking['trainerName'],
-                                                    bookingDateTime: booking['formattedDateTime'],
-                                                    amount: sessionFee,
-                                                    specialization: '', // These are not essential for retry
-                                                    experience: 0,
+                                    if (status == 'pending' && paymentStatus != 'paid_held' && paymentStatus != 'refunded')
+                                      Padding(
+                                        padding: const EdgeInsets.only(top: 16),
+                                        child: SizedBox(
+                                          width: double.infinity,
+                                          child: ElevatedButton(
+                                            onPressed: () async {
+                                              final sessionFee = await _getSessionFee(booking['trainerId']);
+                                              if (sessionFee > 0 && context.mounted) {
+                                                Navigator.push(
+                                                  context,
+                                                  MaterialPageRoute(
+                                                    builder: (context) => PaymentPage(
+                                                      bookingId: bookingDoc.id,
+                                                      trainerId: booking['trainerId'],
+                                                      trainerName: booking['trainerName'],
+                                                      specialization: booking['specialization'],
+                                                      experience: booking['experience'],
+                                                      bookingDateTime: booking['formattedDateTime'],
+                                                      amount: sessionFee,
+                                                    ),
                                                   ),
-                                                ),
-                                              );
-                                            } else if (context.mounted) {
-                                              ScaffoldMessenger.of(context).showSnackBar(
-                                                const SnackBar(
-                                                  content: Text('Could not retrieve session fee. Please try again.'),
-                                                  backgroundColor: Colors.red,
-                                                ),
-                                              );
-                                            }
-                                          },
-                                          style: ElevatedButton.styleFrom(
-                                            backgroundColor: Colors.green,
-                                            padding: const EdgeInsets.symmetric(vertical: 12),
-                                            shape: RoundedRectangleBorder(
-                                              borderRadius: BorderRadius.circular(8),
+                                                );
+                                              }
+                                            },
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor: Colors.green.shade400,
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius: BorderRadius.circular(8),
+                                              ),
+                                              padding: const EdgeInsets.symmetric(vertical: 12),
                                             ),
-                                          ),
-                                          child: const Text(
-                                            'Pay Now',
-                                            style: TextStyle(
-                                              fontSize: 14,
-                                              fontWeight: FontWeight.bold,
+                                            child: const Text(
+                                              'Pay Now',
+                                              style: TextStyle(
+                                                color: Colors.white,
+                                                fontWeight: FontWeight.bold,
+                                              ),
                                             ),
                                           ),
                                         ),
                                       ),
-                                    ],
                                   ],
                                 ),
                               ),
@@ -358,29 +333,26 @@ class BookingViewPage extends StatelessWidget {
 
   Widget _buildInfoRow(String label, String value) {
     return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          label,
+          '$label: ',
           style: TextStyle(
-            color: Colors.white.withOpacity(0.7),
+            color: Colors.white.withOpacity(0.6),
             fontSize: 14,
           ),
         ),
-        Text(
-          value,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 14,
-            fontWeight: FontWeight.bold,
+        Expanded(
+          child: Text(
+            value,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+            ),
           ),
         ),
       ],
     );
-  }
-
-  String _formatDate(DateTime date) {
-    final formatter = DateFormat('MMM d, yyyy h:mm a');
-    return formatter.format(date);
   }
 } 

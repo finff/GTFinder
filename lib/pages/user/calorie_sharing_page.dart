@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:intl/intl.dart';
 
 class CalorieSharingPage extends StatelessWidget {
   const CalorieSharingPage({super.key});
@@ -54,7 +55,7 @@ class CalorieSharingPage extends StatelessWidget {
                     .collection('users')
                     .doc(userSnapshot.data!.uid)
                     .collection('bookings')
-                    .where('status', whereIn: ['pending', 'confirmed'])
+                    .where('status', whereIn: ['pending', 'confirmed', 'completed'])
                     .orderBy('timestamp', descending: true)
                     .snapshots(),
                 builder: (context, snapshot) {
@@ -73,7 +74,11 @@ class CalorieSharingPage extends StatelessWidget {
                     );
                   }
 
-                  final bookings = snapshot.data?.docs ?? [];
+                  final allBookings = snapshot.data?.docs ?? [];
+                  final bookings = allBookings.where((doc) {
+                    final data = doc.data() as Map<String, dynamic>?;
+                    return data?['sharingEntryHidden'] != true;
+                  }).toList();
 
                   if (bookings.isEmpty) {
                     return const Center(
@@ -141,6 +146,47 @@ class TrainerCalorieCard extends StatefulWidget {
 
 class _TrainerCalorieCardState extends State<TrainerCalorieCard> {
   bool _isExpanded = false;
+
+  Future<void> _hideBooking(String bookingId) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF2C3E50),
+        title: const Text('Clear Session?', style: TextStyle(color: Colors.white)),
+        content: const Text(
+          'This will permanently hide this session from your sharing history list. This action cannot be undone.',
+          style: TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            child: const Text('Cancel', style: TextStyle(color: Colors.white70)),
+            onPressed: () => Navigator.of(context).pop(false),
+          ),
+          TextButton(
+            child: Text('Clear', style: TextStyle(color: Colors.redAccent.shade100)),
+            onPressed: () => Navigator.of(context).pop(true),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      try {
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(widget.userId)
+            .collection('bookings')
+            .doc(bookingId)
+            .update({'sharingEntryHidden': true});
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error hiding session: $e')),
+          );
+        }
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -213,80 +259,65 @@ class _TrainerCalorieCardState extends State<TrainerCalorieCard> {
                   ...widget.bookings.map((booking) {
                     final data = booking.data() as Map<String, dynamic>;
                     final bookingId = booking.id;
-                    final schedule = data['formattedDateTime'] ?? '';
-                    final sharingConfirmed = data['calorieSharingConfirmed'] == true;
+                    final schedule = data['formattedDateTime'] ?? 'Session';
+
+                    final isSharingConfirmed = data['calorieSharingConfirmed'] == true;
                     final expiryTimestamp = data['calorieSharingExpiry'] as Timestamp?;
-                    final isExpired = expiryTimestamp != null && expiryTimestamp.toDate().isBefore(DateTime.now());
+                    final isCompleted = data['status'] == 'completed';
                     
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Session: $schedule',
-                          style: TextStyle(
-                            color: Colors.white.withOpacity(0.7),
-                            fontSize: 14,
+                    final isExpired = (expiryTimestamp != null && expiryTimestamp.toDate().isBefore(DateTime.now())) || 
+                                      (isCompleted && expiryTimestamp == null);
+
+                    final isSharingActive = isSharingConfirmed && !isExpired;
+
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 8.0),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: ListTile(
+                          tileColor: Colors.white.withOpacity(0.05),
+                          title: Text(
+                            schedule,
+                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
                           ),
-                        ),
-                        const SizedBox(height: 8),
-                        Row(
-                          children: [
-                            Icon(
-                              sharingConfirmed ? Icons.check_circle : Icons.cancel,
-                              color: sharingConfirmed ? Colors.green : Colors.red,
-                              size: 16,
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              sharingConfirmed ? 'Calories shared with trainer' : 'Not shared with trainer',
-                              style: TextStyle(
-                                color: sharingConfirmed ? Colors.green : Colors.red,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w500,
+                          subtitle: Text(
+                            isExpired
+                                ? 'Sharing for this session has ended.'
+                                : isSharingActive
+                                    ? (expiryTimestamp != null
+                                        ? 'Sharing is ON. Ends at ${DateFormat.jm().format(expiryTimestamp.toDate())}'
+                                        : 'Sharing is ON.')
+                                    : 'Sharing is OFF.',
+                            style: const TextStyle(color: Colors.white70, fontSize: 12),
+                          ),
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Switch(
+                                value: isSharingActive,
+                                onChanged: isExpired 
+                                  ? null 
+                                  : (bool value) {
+                                      FirebaseFirestore.instance
+                                          .collection('users')
+                                          .doc(widget.userId)
+                                          .collection('bookings')
+                                          .doc(bookingId)
+                                          .update({'calorieSharingConfirmed': value});
+                                    },
+                                activeColor: Colors.greenAccent,
                               ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 16),
-                        SwitchListTile(
-                          title: const Text(
-                            'Enable Calorie Sharing',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          value: sharingConfirmed,
-                          onChanged: isExpired
-                              ? null // Disable the switch if expired
-                              : (bool value) {
-                                  FirebaseFirestore.instance
-                                      .collection('users')
-                                      .doc(widget.userId)
-                                      .collection('bookings')
-                                      .doc(bookingId)
-                                      .update({'calorieSharingConfirmed': value});
-                                },
-                          activeColor: Colors.green,
-                          inactiveThumbColor: Colors.red,
-                          tileColor: Colors.white.withOpacity(0.1),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
+                              if (isExpired)
+                                IconButton(
+                                  icon: const Icon(Icons.delete_sweep_outlined),
+                                  color: Colors.redAccent.withOpacity(0.7),
+                                  tooltip: 'Clear From List',
+                                  onPressed: () => _hideBooking(bookingId),
+                                ),
+                            ],
                           ),
                         ),
-                        if (isExpired)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 8.0),
-                            child: Text(
-                              'The time to change this setting has expired.',
-                              style: TextStyle(
-                                color: Colors.orange.shade300,
-                                fontSize: 12,
-                              ),
-                            ),
-                          ),
-                        const SizedBox(height: 20),
-                      ],
+                      ),
                     );
                   }).toList(),
                 ],

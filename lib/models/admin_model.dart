@@ -38,6 +38,24 @@ class AdminModel {
     };
   }
 
+  AdminModel copyWith({
+    String? id,
+    String? email,
+    String? name,
+    DateTime? createdAt,
+    List<String>? permissions,
+    bool? isActive,
+  }) {
+    return AdminModel(
+      id: id ?? this.id,
+      email: email ?? this.email,
+      name: name ?? this.name,
+      createdAt: createdAt ?? this.createdAt,
+      permissions: permissions ?? this.permissions,
+      isActive: isActive ?? this.isActive,
+    );
+  }
+
   bool hasPermission(String permission) {
     return permissions.contains(permission);
   }

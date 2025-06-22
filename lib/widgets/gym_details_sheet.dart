@@ -44,13 +44,43 @@ class GymDetailsSheet extends StatelessWidget {
         children: [
           // Handle bar
           Container(
-            margin: const EdgeInsets.only(top: 8),
+            margin: const EdgeInsets.only(top: 8, bottom: 8),
             width: 40,
             height: 4,
             decoration: BoxDecoration(
               color: Colors.grey[300],
               borderRadius: BorderRadius.circular(2),
             ),
+          ),
+          
+          // Gym Image Banner
+          Container(
+            height: 200,
+            width: double.infinity,
+            margin: const EdgeInsets.only(bottom: 12),
+            decoration: BoxDecoration(
+              color: Colors.grey[200],
+              image: DecorationImage(
+                image: (gym.photos.isNotEmpty
+                        ? NetworkImage(gym.photos.first)
+                        : const AssetImage('assets/images/default_gym.png'))
+                    as ImageProvider,
+                fit: BoxFit.cover,
+                colorFilter: ColorFilter.mode(
+                  Colors.black.withOpacity(0.3),
+                  BlendMode.darken,
+                ),
+              ),
+            ),
+            child: gym.photos.isEmpty
+                ? const Center(
+                    child: Icon(
+                      Icons.business,
+                      size: 50,
+                      color: Colors.white54,
+                    ),
+                  )
+                : null,
           ),
           
           // Close button

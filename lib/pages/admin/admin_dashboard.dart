@@ -19,6 +19,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
   AdminModel? _currentAdmin;
   int _selectedIndex = 0;
   bool _isLoading = true;
+  String? _loadingError;
 
   @override
   void initState() {
@@ -28,7 +29,10 @@ class _AdminDashboardState extends State<AdminDashboard> {
 
   Future<void> _loadData() async {
     print('[ADMIN_DASHBOARD] _loadData started.');
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      _loadingError = null;
+    });
     try {
       final analytics = await _adminService.getAnalytics();
       print('[ADMIN_DASHBOARD] Analytics data received: $analytics'); // More detailed log
@@ -37,17 +41,27 @@ class _AdminDashboardState extends State<AdminDashboard> {
       print('[ADMIN_DASHBOARD] Current admin received: ${admin?.name}');
       
       if (mounted) {
-        setState(() {
-          _analytics = analytics;
-          _currentAdmin = admin;
-          _isLoading = false;
-        });
-        print('[ADMIN_DASHBOARD] State updated with new data.');
+        if (admin == null) {
+          setState(() {
+            _isLoading = false;
+            _loadingError = 'Could not find an admin profile for the current user. Please contact support.';
+          });
+        } else {
+          setState(() {
+            _analytics = analytics;
+            _currentAdmin = admin;
+            _isLoading = false;
+          });
+          print('[ADMIN_DASHBOARD] State updated with new data.');
+        }
       }
     } catch (e) {
       print('[ADMIN_DASHBOARD] Error loading admin data: $e');
       if (mounted) {
-        setState(() => _isLoading = false);
+        setState(() {
+          _isLoading = false;
+          _loadingError = 'Failed to load admin data: $e';
+        });
       }
     }
   }
@@ -153,7 +167,26 @@ class _AdminDashboardState extends State<AdminDashboard> {
                           _buildPaymentsPage(),
                           _buildRefundsPage(),
                           _buildAnnouncementsPage(),
-                          _buildSettingsPage(),
+                          if (_currentAdmin != null)
+                            AdminSettingsPage(
+                              admin: _currentAdmin!,
+                              onProfileUpdated: (newName) {
+                                setState(() {
+                                  _currentAdmin = _currentAdmin?.copyWith(name: newName);
+                                });
+                              },
+                            )
+                          else
+                            Center(
+                              child: Padding(
+                                padding: const EdgeInsets.all(16.0),
+                                child: Text(
+                                  _loadingError ?? 'Admin profile could not be loaded. Please try again later.',
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(color: Colors.white70),
+                                ),
+                              ),
+                            ),
                         ],
                       ),
                     ),
@@ -161,51 +194,55 @@ class _AdminDashboardState extends State<AdminDashboard> {
                     Theme(
                       data: Theme.of(context).copyWith(
                         navigationBarTheme: NavigationBarThemeData(
-                          labelTextStyle: MaterialStateProperty.all(
-                            const TextStyle(fontSize: 12, height: 1.0),
-                          ),
+                          labelTextStyle: MaterialStateProperty.resolveWith((states) {
+                            if (states.contains(MaterialState.selected)) {
+                              return const TextStyle(fontSize: 12, height: 1.0, color: Colors.white, fontWeight: FontWeight.bold);
+                            }
+                            return const TextStyle(fontSize: 12, height: 1.0, color: Colors.white70);
+                          }),
                         ),
                       ),
                       child: NavigationBar(
                         height: 60,
                         backgroundColor: Colors.white.withOpacity(0.1),
+                        indicatorColor: Colors.white.withOpacity(0.2),
                         selectedIndex: _selectedIndex,
                         onDestinationSelected: (index) => setState(() => _selectedIndex = index),
                         labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
                         destinations: const [
                           NavigationDestination(
-                            icon: Icon(Icons.dashboard_outlined, size: 24),
-                            selectedIcon: Icon(Icons.dashboard, size: 24),
+                            icon: Icon(Icons.dashboard_outlined, size: 24, color: Colors.white70),
+                            selectedIcon: Icon(Icons.dashboard, size: 24, color: Colors.white),
                             label: 'Overview',
                           ),
                           NavigationDestination(
-                            icon: Icon(Icons.people_outline, size: 24),
-                            selectedIcon: Icon(Icons.people, size: 24),
+                            icon: Icon(Icons.people_outline, size: 24, color: Colors.white70),
+                            selectedIcon: Icon(Icons.people, size: 24, color: Colors.white),
                             label: 'Users',
                           ),
                           NavigationDestination(
-                            icon: Icon(Icons.fitness_center_outlined, size: 24),
-                            selectedIcon: Icon(Icons.fitness_center, size: 24),
+                            icon: Icon(Icons.fitness_center_outlined, size: 24, color: Colors.white70),
+                            selectedIcon: Icon(Icons.fitness_center, size: 24, color: Colors.white),
                             label: 'Trainers',
                           ),
                           NavigationDestination(
-                            icon: Icon(Icons.payment_outlined, size: 24),
-                            selectedIcon: Icon(Icons.payment, size: 24),
+                            icon: Icon(Icons.payment_outlined, size: 24, color: Colors.white70),
+                            selectedIcon: Icon(Icons.payment, size: 24, color: Colors.white),
                             label: 'Payments',
                           ),
                           NavigationDestination(
-                            icon: Icon(Icons.money_off_outlined, size: 24),
-                            selectedIcon: Icon(Icons.money_off, size: 24),
+                            icon: Icon(Icons.money_off_outlined, size: 24, color: Colors.white70),
+                            selectedIcon: Icon(Icons.money_off, size: 24, color: Colors.white),
                             label: 'Refunds',
                           ),
                           NavigationDestination(
-                            icon: Icon(Icons.campaign_outlined, size: 24),
-                            selectedIcon: Icon(Icons.campaign, size: 24),
+                            icon: Icon(Icons.campaign_outlined, size: 24, color: Colors.white70),
+                            selectedIcon: Icon(Icons.campaign, size: 24, color: Colors.white),
                             label: 'Announce',
                           ),
                           NavigationDestination(
-                            icon: Icon(Icons.settings_outlined, size: 24),
-                            selectedIcon: Icon(Icons.settings, size: 24),
+                            icon: Icon(Icons.settings_outlined, size: 24, color: Colors.white70),
+                            selectedIcon: Icon(Icons.settings, size: 24, color: Colors.white),
                             label: 'Settings',
                           ),
                         ],
@@ -256,56 +293,126 @@ class _AdminDashboardState extends State<AdminDashboard> {
   }
 
   Widget _buildOverview() {
-    print('[ADMIN_DASHBOARD] Building overview with analytics: $_analytics'); // More detailed log
-    final totalTrainers = _analytics['totalTrainers']?.toString() ?? '0';
-    print('[ADMIN_DASHBOARD] Total trainers to display: $totalTrainers');
-
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
+        const Text(
+          'Analytics Overview',
+          style: TextStyle(
+            fontSize: 22,
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
+          ),
+        ),
+        const SizedBox(height: 16),
+        GridView.count(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          crossAxisCount: 2,
+          crossAxisSpacing: 16,
+          mainAxisSpacing: 16,
+          childAspectRatio: 1.5,
           children: [
-            Expanded(
-              child: _buildStatCard(
-                'Total Users',
-                _analytics['totalUsers']?.toString() ?? '0',
-                Icons.people_outline,
-                Colors.blue.shade300,
-              ),
+            _buildStatCard(
+              'Total Users',
+              _analytics['totalUsers']?.toString() ?? '0',
+              Icons.people_alt,
+              Colors.blue.shade300,
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _buildStatCard(
-                'Total Trainers',
-                totalTrainers,
-                Icons.fitness_center,
-                Colors.green.shade300,
-              ),
+            _buildStatCard(
+              'Total Trainers',
+              _analytics['totalTrainers']?.toString() ?? '0',
+              Icons.sports,
+              Colors.green.shade300,
+            ),
+            _buildStatCard(
+              'Active Bookings',
+              _analytics['activeBookings']?.toString() ?? '0',
+              Icons.event_available,
+              Colors.orange.shade300,
+            ),
+            _buildStatCard(
+              'Total Revenue',
+              'RM ${_analytics['revenue']?.toStringAsFixed(2) ?? '0.00'}',
+              Icons.attach_money,
+              Colors.red.shade300,
             ),
           ],
+        ),
+        const SizedBox(height: 24),
+        const Text(
+          'Active Bookings',
+          style: TextStyle(
+            fontSize: 22,
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
+          ),
         ),
         const SizedBox(height: 12),
-        Row(
-          children: [
-            Expanded(
-              child: _buildStatCard(
-                'Active Bookings',
-                _analytics['activeBookings']?.toString() ?? '0',
-                Icons.calendar_today_outlined,
-                Colors.orange.shade300,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _buildStatCard(
-                'Revenue',
-                '\$${_analytics["revenue"]?.toString() ?? "0"}',
-                Icons.attach_money_outlined,
-                Colors.purple.shade300,
-              ),
-            ),
-          ],
-        ),
+        _buildActiveBookingsList(),
       ],
+    );
+  }
+
+  Widget _buildActiveBookingsList() {
+    return StreamBuilder<List<Map<String, dynamic>>>(
+      stream: _adminService.getActiveBookings(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator(color: Colors.white));
+        }
+        if (snapshot.hasError) {
+          return Center(child: Text('Error: ${snapshot.error}', style: const TextStyle(color: Colors.white)));
+        }
+        if (!snapshot.hasData || snapshot.data!.isEmpty) {
+          return const Center(
+            child: Text(
+              'No active bookings right now.',
+              style: TextStyle(color: Colors.white70),
+            ),
+          );
+        }
+
+        final bookings = snapshot.data!;
+
+        return ListView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: bookings.length,
+          itemBuilder: (context, index) {
+            final booking = bookings[index];
+            final bookingTime = (booking['bookingDateTime'] as Timestamp).toDate();
+            
+            return Card(
+              color: Colors.white.withOpacity(0.1),
+              margin: const EdgeInsets.symmetric(vertical: 6),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              child: ListTile(
+                leading: CircleAvatar(
+                  backgroundColor: Colors.white.withOpacity(0.2),
+                  child: const Icon(Icons.person, color: Colors.white),
+                ),
+                title: Text(
+                  'User: ${booking['userName'] ?? 'N/A'}',
+                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                ),
+                subtitle: Text(
+                  'Trainer: ${booking['trainerName'] ?? 'N/A'}\n'
+                  'On: ${bookingTime.day}/${bookingTime.month}/${bookingTime.year} at ${bookingTime.hour.toString().padLeft(2, '0')}:${bookingTime.minute.toString().padLeft(2, '0')}',
+                  style: const TextStyle(color: Colors.white70),
+                ),
+                trailing: Text(
+                  booking['status'].toString().toUpperCase(),
+                  style: TextStyle(
+                    color: booking['status'] == 'confirmed' ? Colors.greenAccent : Colors.orangeAccent,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
     );
   }
 
@@ -594,7 +701,43 @@ class _AdminDashboardState extends State<AdminDashboard> {
                   ],
                 ),
                 trailing: ElevatedButton(
-                  onPressed: () => _showReleasePaymentDialog(payment),
+                  onPressed: () async {
+                    final bool confirm = await _showConfirmationDialog(
+                      context,
+                      'Release Payment?',
+                      'This will capture the payment from the user and transfer the funds to the trainer. This action cannot be undone.',
+                    );
+                    if (confirm) {
+                      try {
+                        await _adminService
+                            .releasePaymentToTrainer(
+                          payment['id'],
+                          bookingId: payment['bookingId'],
+                          trainerId: payment['trainerId'],
+                          userId: payment['userId'],
+                          userName: payment['userName'],
+                          amount: (payment['amount'] as num).toDouble(),
+                        );
+                        ScaffoldMessenger.of(context)
+                            .showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                                'Payment released successfully!'),
+                            backgroundColor: Colors.green,
+                          ),
+                        );
+                      } catch (e) {
+                        ScaffoldMessenger.of(context)
+                            .showSnackBar(
+                          SnackBar(
+                            content: Text(
+                                'Failed to release payment: $e'),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                      }
+                    }
+                  },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.green.shade700,
                     foregroundColor: Colors.white,
@@ -846,65 +989,6 @@ class _AdminDashboardState extends State<AdminDashboard> {
           },
         );
       },
-    );
-  }
-
-  void _showReleasePaymentDialog(Map<String, dynamic> payment) {
-    final amount = payment['amount']?.toDouble() ?? 0.0;
-    final userName = payment['userName'] ?? 'Unknown User';
-    final trainerName = payment['trainerName'] ?? 'Unknown Trainer';
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF212E83),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
-        title: const Text(
-          'Release Payment',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-        ),
-        content: Text(
-          'Are you sure you want to release RM ${amount.toStringAsFixed(2)} to $trainerName for the session with $userName?',
-          style: const TextStyle(color: Colors.white70),
-        ),
-        actions: [
-          TextButton(
-            child: const Text('Cancel', style: TextStyle(color: Colors.white70)),
-            onPressed: () => Navigator.pop(context),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.green.shade700,
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('Release Payment'),
-            onPressed: () async {
-              try {
-                await _adminService.releasePaymentToTrainer(payment['id']);
-                if (!mounted) return;
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Payment released to $trainerName'),
-                    backgroundColor: Colors.green,
-                  ),
-                );
-              } catch (e) {
-                if (!mounted) return;
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Error releasing payment: $e'),
-                    backgroundColor: Colors.red,
-                  ),
-                );
-              }
-            },
-          ),
-        ],
-      ),
     );
   }
 
@@ -1497,6 +1581,182 @@ class _AdminDashboardState extends State<AdminDashboard> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Future<bool> _showConfirmationDialog(
+      BuildContext context, String title, String content) async {
+    return await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            backgroundColor: const Color(0xFF212E83),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            title: Text(
+              title,
+              style:
+                  const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+            ),
+            content: Text(
+              content,
+              style: const TextStyle(color: Colors.white70),
+            ),
+            actions: [
+              TextButton(
+                child:
+                    const Text('Cancel', style: TextStyle(color: Colors.white70)),
+                onPressed: () => Navigator.of(context).pop(false),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green.shade700,
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text('Confirm'),
+                onPressed: () => Navigator.of(context).pop(true),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+  }
+}
+
+class AdminSettingsPage extends StatefulWidget {
+  final AdminModel admin;
+  final Function(String) onProfileUpdated;
+
+  const AdminSettingsPage({
+    super.key,
+    required this.admin,
+    required this.onProfileUpdated,
+  });
+
+  @override
+  State<AdminSettingsPage> createState() => _AdminSettingsPageState();
+}
+
+class _AdminSettingsPageState extends State<AdminSettingsPage> {
+  late final TextEditingController _nameController;
+  final AdminService _adminService = AdminService();
+  bool _isSaving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _nameController = TextEditingController(text: widget.admin.name);
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _updateProfile() async {
+    if (_nameController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Name cannot be empty')),
+      );
+      return;
+    }
+
+    setState(() => _isSaving = true);
+    try {
+      final newName = _nameController.text.trim();
+      await _adminService.updateAdminProfile(widget.admin.id, newName);
+      
+      widget.onProfileUpdated(newName);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Profile updated successfully'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error updating profile: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSaving = false);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Profile Settings',
+            style: TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
+          ),
+          const SizedBox(height: 16),
+          _buildProfileCard(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProfileCard() {
+    return Card(
+      color: Colors.white.withOpacity(0.1),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            TextField(
+              controller: _nameController,
+              style: const TextStyle(color: Colors.white),
+              decoration: InputDecoration(
+                labelText: 'Admin Name',
+                labelStyle: TextStyle(color: Colors.blue.shade100),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(color: Colors.white.withOpacity(0.2)),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(color: Colors.blue.shade200),
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            _isSaving
+                ? const CircularProgressIndicator(color: Colors.white)
+                : ElevatedButton.icon(
+                    onPressed: _updateProfile,
+                    icon: const Icon(Icons.save, color: Colors.white),
+                    label: const Text('Save Changes', style: TextStyle(color: Colors.white)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blue.shade700.withOpacity(0.8),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                    ),
+                  ),
+          ],
+        ),
       ),
     );
   }
