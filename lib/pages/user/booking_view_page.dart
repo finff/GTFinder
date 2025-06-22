@@ -240,6 +240,24 @@ class BookingViewPage extends StatelessWidget {
                                       (paymentStatus ?? 'UNPAID').toUpperCase(),
                                     ),
                                     const SizedBox(height: 6),
+                                    if (paymentStatus == 'refunded') ...[
+                                      _buildInfoRow(
+                                        'Refund Status',
+                                        'REFUNDED',
+                                      ),
+                                      const SizedBox(height: 6),
+                                      _buildInfoRow(
+                                        'Refund Reason',
+                                        (booking['refundReason'] ?? 'Unknown').replaceAll('_', ' ').toUpperCase(),
+                                      ),
+                                      if (booking['refundedAt'] != null) ...[
+                                        const SizedBox(height: 6),
+                                        _buildInfoRow(
+                                          'Refunded On',
+                                          _formatDate((booking['refundedAt'] as Timestamp).toDate()),
+                                        ),
+                                      ],
+                                    ],
                                     Row(
                                       children: [
                                         Icon(
@@ -359,5 +377,10 @@ class BookingViewPage extends StatelessWidget {
         ),
       ],
     );
+  }
+
+  String _formatDate(DateTime date) {
+    final formatter = DateFormat('MMM d, yyyy h:mm a');
+    return formatter.format(date);
   }
 } 

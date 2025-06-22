@@ -151,6 +151,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                           _buildUsersList(),
                           _buildTrainersList(),
                           _buildPaymentsPage(),
+                          _buildRefundsPage(),
                           _buildAnnouncementsPage(),
                           _buildSettingsPage(),
                         ],
@@ -191,6 +192,11 @@ class _AdminDashboardState extends State<AdminDashboard> {
                             icon: Icon(Icons.payment_outlined, size: 24),
                             selectedIcon: Icon(Icons.payment, size: 24),
                             label: 'Payments',
+                          ),
+                          NavigationDestination(
+                            icon: Icon(Icons.money_off_outlined, size: 24),
+                            selectedIcon: Icon(Icons.money_off, size: 24),
+                            label: 'Refunds',
                           ),
                           NavigationDestination(
                             icon: Icon(Icons.campaign_outlined, size: 24),
@@ -477,41 +483,37 @@ class _AdminDashboardState extends State<AdminDashboard> {
 
   Widget _buildPaymentsPage() {
     return DefaultTabController(
-      length: 2,
-      child: Column(
-        children: [
-          Container(
-            margin: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const TabBar(
-              labelColor: Colors.white,
-              unselectedLabelColor: Colors.white70,
-              indicatorColor: Colors.white,
-              tabs: [
-                Tab(text: 'Pending Payments'),
-                Tab(text: 'Payment History'),
-              ],
-            ),
+      length: 3,
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          flexibleSpace: const TabBar(
+            tabs: [
+              Tab(text: 'Release Payments'),
+              Tab(text: 'Refund Requests'),
+              Tab(text: 'Payment History'),
+            ],
+            indicatorColor: Colors.white,
+            labelColor: Colors.white,
+            unselectedLabelColor: Colors.white70,
           ),
-          Expanded(
-            child: TabBarView(
-              children: [
-                _buildPendingPayments(),
-                _buildPaymentHistory(),
-              ],
-            ),
-          ),
-        ],
+        ),
+        body: TabBarView(
+          children: [
+            _buildReleasePayments(),
+            _buildRefundRequests(),
+            _buildPaymentHistory(),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildPendingPayments() {
+  Widget _buildReleasePayments() {
     return StreamBuilder<List<Map<String, dynamic>>>(
-      stream: _adminService.getPendingEscrowPayments(),
+      stream: _adminService.getEscrowPaymentsForRelease(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator(color: Colors.white));
@@ -526,12 +528,16 @@ class _AdminDashboardState extends State<AdminDashboard> {
           );
         }
 
-        final payments = snapshot.data ?? [];
+        final allPayments = snapshot.data ?? [];
+        // Filter out refunded payments - they should only appear in refunds section
+        final payments = allPayments.where((payment) => 
+          payment['adminStatus'] != 'refunded'
+        ).toList();
 
         if (payments.isEmpty) {
           return const Center(
             child: Text(
-              'No pending payments',
+              'No payments to release',
               style: TextStyle(color: Colors.white, fontSize: 16),
             ),
           );
@@ -606,6 +612,98 @@ class _AdminDashboardState extends State<AdminDashboard> {
     );
   }
 
+  Widget _buildRefundRequests() {
+    return StreamBuilder<List<Map<String, dynamic>>>(
+      stream: _adminService.getPaymentsPendingRefund(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator(color: Colors.white));
+        }
+
+        if (snapshot.hasError) {
+          return Center(
+            child: Text(
+              'Error: ${snapshot.error}',
+              style: const TextStyle(color: Colors.white),
+            ),
+          );
+        }
+
+        final refundRequests = snapshot.data ?? [];
+
+        if (refundRequests.isEmpty) {
+          return const Center(
+            child: Text(
+              'No pending refund requests.',
+              style: TextStyle(color: Colors.white, fontSize: 16),
+            ),
+          );
+        }
+
+        return ListView.builder(
+          padding: const EdgeInsets.all(16),
+          itemCount: refundRequests.length,
+          itemBuilder: (context, index) {
+            final payment = refundRequests[index];
+            final amount = payment['amount']?.toDouble() ?? 0.0;
+            final userName = payment['userName'] ?? 'Unknown User';
+            final trainerName = payment['trainerName'] ?? 'Unknown Trainer';
+            final bookingDateTime = payment['formattedDateTime'] ?? 'Unknown Date';
+            final reason = payment['cancellationReason'] ?? 'Not specified';
+            
+            return Container(
+              margin: const EdgeInsets.only(bottom: 12),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: ListTile(
+                contentPadding: const EdgeInsets.all(16),
+                title: Text(
+                  'RM ${amount.toStringAsFixed(2)}',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                subtitle: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const SizedBox(height: 8),
+                    Text(
+                      'User: $userName',
+                      style: TextStyle(color: Colors.blue.shade100),
+                    ),
+                    Text(
+                      'Trainer: $trainerName',
+                      style: TextStyle(color: Colors.blue.shade100),
+                    ),
+                    Text(
+                      'Reason: ${reason.replaceAll('_', ' ').toUpperCase()}',
+                      style: TextStyle(color: Colors.orange.shade200),
+                    ),
+                  ],
+                ),
+                trailing: ElevatedButton(
+                  onPressed: () => _showProcessRefundDialog(payment),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.orange.shade700,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  child: const Text('Refund'),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   Widget _buildPaymentHistory() {
     return StreamBuilder<List<Map<String, dynamic>>>(
       stream: _adminService.getAllEscrowPayments(),
@@ -645,6 +743,33 @@ class _AdminDashboardState extends State<AdminDashboard> {
             final status = payment['adminStatus'] ?? 'unknown';
             final createdAt = payment['createdAt'] as Timestamp?;
             final releasedAt = payment['releasedAt'] as Timestamp?;
+            final refundedAt = payment['refundedAt'] as Timestamp?;
+            final refundReason = payment['refundReason'] ?? '';
+
+            // Determine status color and text
+            Color statusColor;
+            String statusText;
+            switch (status) {
+              case 'released':
+                statusColor = Colors.green;
+                statusText = 'RELEASED';
+                break;
+              case 'refunded':
+                statusColor = Colors.red;
+                statusText = 'REFUNDED';
+                break;
+              case 'pending':
+                statusColor = Colors.orange;
+                statusText = 'PENDING';
+                break;
+              case 'held':
+                statusColor = Colors.blue;
+                statusText = 'HELD';
+                break;
+              default:
+                statusColor = Colors.grey;
+                statusText = status.toUpperCase();
+            }
 
             return Container(
               margin: const EdgeInsets.only(bottom: 12),
@@ -668,15 +793,13 @@ class _AdminDashboardState extends State<AdminDashboard> {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
-                        color: status == 'released' 
-                            ? Colors.green.withOpacity(0.2)
-                            : Colors.orange.withOpacity(0.2),
+                        color: statusColor.withOpacity(0.2),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Text(
-                        status.toUpperCase(),
+                        statusText,
                         style: TextStyle(
-                          color: status == 'released' ? Colors.green : Colors.orange,
+                          color: statusColor,
                           fontSize: 12,
                           fontWeight: FontWeight.bold,
                         ),
@@ -705,6 +828,16 @@ class _AdminDashboardState extends State<AdminDashboard> {
                       Text(
                         'Released: ${_formatDate(releasedAt.toDate())}',
                         style: TextStyle(color: Colors.green.shade100, fontSize: 12),
+                      ),
+                    if (refundedAt != null)
+                      Text(
+                        'Refunded: ${_formatDate(refundedAt.toDate())}',
+                        style: TextStyle(color: Colors.red.shade100, fontSize: 12),
+                      ),
+                    if (refundReason.isNotEmpty)
+                      Text(
+                        'Reason: $refundReason',
+                        style: TextStyle(color: Colors.red.shade100, fontSize: 12),
                       ),
                   ],
                 ),
@@ -764,6 +897,113 @@ class _AdminDashboardState extends State<AdminDashboard> {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     content: Text('Error releasing payment: $e'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+              }
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showProcessRefundDialog(Map<String, dynamic> payment) {
+    final amount = payment['amount']?.toDouble() ?? 0.0;
+    final userName = payment['userName'] ?? 'Unknown User';
+    final trainerName = payment['trainerName'] ?? 'Unknown Trainer';
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF212E83),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        title: const Text(
+          'Process Refund',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
+        content: Text(
+          'Are you sure you want to refund RM ${amount.toStringAsFixed(2)} to $userName for the session cancelled by $trainerName?',
+          style: const TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            child: const Text('Cancel', style: TextStyle(color: Colors.white70)),
+            onPressed: () => Navigator.pop(context),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.orange.shade700,
+            ),
+            child: const Text('Yes, Process Refund', style: TextStyle(color: Colors.white)),
+            onPressed: () async {
+              print('--- Refund Process Started ---');
+              
+              // Define all variables and check for nulls
+              final bookingId = payment['bookingId'] as String?;
+              final paymentIntentId = payment['paymentIntentId'] as String?;
+              final userId = payment['userId'] as String?;
+              final trainerId = payment['trainerId'] as String?;
+              final amount = payment['amount']?.toDouble();
+
+              print('1. Extracted Data:');
+              print('   - Booking ID: $bookingId');
+              print('   - Payment Intent ID: $paymentIntentId');
+              print('   - User ID: $userId');
+              print('   - Trainer ID: $trainerId');
+              print('   - Amount: $amount');
+
+              if (bookingId == null || paymentIntentId == null || userId == null || trainerId == null || amount == null) {
+                print('--- ERROR: One or more required fields are null. Aborting. ---');
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Critical error: Missing data for refund.'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+                Navigator.pop(context);
+                return;
+              }
+
+              print('2. Data validation passed.');
+
+              // Store the ScaffoldMessenger before the async gap.
+              final scaffoldMessenger = ScaffoldMessenger.of(context);
+              Navigator.pop(context); // Close dialog
+
+              try {
+                print('3. Dialog closed. Calling refund service...');
+                
+                await _adminService.refundPaymentForCancelledBooking(
+                  bookingId: bookingId,
+                  paymentIntentId: paymentIntentId,
+                  userId: userId,
+                  trainerId: trainerId,
+                  amount: amount,
+                  reason: 'trainer_cancellation_approved',
+                );
+
+                print('4. Refund service call completed successfully.');
+
+                scaffoldMessenger.showSnackBar(
+                  const SnackBar(
+                    content: Text('Refund processed successfully!'),
+                    backgroundColor: Colors.green,
+                  ),
+                );
+                print('5. Success message shown.');
+
+              } catch (e, s) {
+                print('--- ERROR DURING REFUND ---');
+                print('Error: $e');
+                print('Stack Trace: $s');
+                scaffoldMessenger.showSnackBar(
+                  SnackBar(
+                    content: Text('Error during refund: $e'),
                     backgroundColor: Colors.red,
                   ),
                 );
@@ -1088,6 +1328,176 @@ class _AdminDashboardState extends State<AdminDashboard> {
           },
         );
       },
+    );
+  }
+
+  Widget _buildRefundsPage() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Refund Management',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Expanded(
+            child: StreamBuilder<List<Map<String, dynamic>>>(
+              stream: _adminService.getAllRefunds(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator(color: Colors.white));
+                }
+
+                if (snapshot.hasError) {
+                  return Center(
+                    child: Text(
+                      'Error: ${snapshot.error}',
+                      style: const TextStyle(color: Colors.white),
+                    ),
+                  );
+                }
+
+                final refunds = snapshot.data ?? [];
+
+                if (refunds.isEmpty) {
+                  return const Center(
+                    child: Text(
+                      'No refunds found',
+                      style: TextStyle(color: Colors.white, fontSize: 16),
+                    ),
+                  );
+                }
+
+                return ListView.builder(
+                  itemCount: refunds.length,
+                  itemBuilder: (context, index) {
+                    final refund = refunds[index];
+                    final amount = refund['amount']?.toDouble() ?? 0.0;
+                    final refundStatus = refund['refundStatus'] ?? 'pending';
+                    final refundReason = refund['refundReason'] ?? 'Unknown';
+                    final refundedAt = refund['refundedAt'] as Timestamp?;
+                    final bookingId = refund['bookingId'] ?? '';
+                    final userId = refund['userId'] ?? '';
+                    final trainerId = refund['trainerId'] ?? '';
+                    final refundedBy = refund['refundedBy'] ?? '';
+                    final initiatedBy = refund['initiatedBy'] ?? 'admin';
+                    final refundId = refund['refundId'] ?? '';
+
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: ListTile(
+                        contentPadding: const EdgeInsets.all(16),
+                        title: Row(
+                          children: [
+                            Text(
+                              'RM ${amount.toStringAsFixed(2)}',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: initiatedBy == 'trainer' 
+                                    ? Colors.orange.withOpacity(0.2)
+                                    : Colors.blue.withOpacity(0.2),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text(
+                                initiatedBy.toUpperCase(),
+                                style: TextStyle(
+                                  color: initiatedBy == 'trainer' 
+                                      ? Colors.orange.shade300 
+                                      : Colors.blue.shade300,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        subtitle: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const SizedBox(height: 8),
+                            Text(
+                              'Reason: ${refundReason.replaceAll('_', ' ').toUpperCase()}',
+                              style: TextStyle(color: Colors.blue.shade100),
+                            ),
+                            Text(
+                              'Status: ${refundStatus.toUpperCase()}',
+                              style: TextStyle(
+                                color: refundStatus == 'succeeded' 
+                                    ? Colors.green.shade300 
+                                    : Colors.orange.shade300,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            Text(
+                              'Booking ID: $bookingId',
+                              style: TextStyle(color: Colors.blue.shade100, fontSize: 12),
+                            ),
+                            if (refundId.isNotEmpty)
+                              Text(
+                                'Refund ID: $refundId',
+                                style: TextStyle(color: Colors.blue.shade100, fontSize: 12),
+                              ),
+                            if (refundedBy.isNotEmpty)
+                              Text(
+                                'Refunded by: $refundedBy',
+                                style: TextStyle(color: Colors.blue.shade100, fontSize: 12),
+                              ),
+                            if (refundedAt != null)
+                              Text(
+                                'Refunded: ${_formatDate(refundedAt.toDate())}',
+                                style: TextStyle(color: Colors.blue.shade100, fontSize: 12),
+                              ),
+                          ],
+                        ),
+                        trailing: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: refundStatus == 'succeeded' 
+                                ? Colors.green.withOpacity(0.2)
+                                : Colors.orange.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            refundStatus.toUpperCase(),
+                            style: TextStyle(
+                              color: refundStatus == 'succeeded' 
+                                  ? Colors.green.shade300 
+                                  : Colors.orange.shade300,
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+        ],
+      ),
     );
   }
 } 

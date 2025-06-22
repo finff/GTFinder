@@ -74,7 +74,7 @@ class _PaymentPageState extends State<PaymentPage> {
       print('Sending request to payment server...');
       
       // Use your deployed server URL or local IP address
-      final Uri uri = Uri.parse('http://192.168.0.16:8080/create-payment-intent');
+      final Uri uri = Uri.parse('https://gtfinder.onrender.com/create-payment-intent');
       print('Attempting to connect to: $uri');
       
         final response = await http.post(
@@ -127,7 +127,7 @@ class _PaymentPageState extends State<PaymentPage> {
       // Create payment intent
       print('Creating payment intent...');
       final response = await http.post(
-        Uri.parse('http://192.168.0.16:8080/create-payment-intent'),
+        Uri.parse('https://gtfinder.onrender.com/create-payment-intent'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'amount': (widget.amount * 100).round(), // Convert to cents
@@ -312,7 +312,7 @@ class _PaymentPageState extends State<PaymentPage> {
 
       batch.set(adminEscrowRef, {
         ...paymentData,
-        'adminStatus': 'pending_release', // Admin needs to approve release
+        'adminStatus': 'pending', // Changed from 'pending_release' to 'pending'
         'createdAt': FieldValue.serverTimestamp(),
       });
 
@@ -320,6 +320,7 @@ class _PaymentPageState extends State<PaymentPage> {
       final updates = {
         'status': 'confirmed',
         'paymentId': userPaymentRef.id,
+        'paymentIntentId': paymentIntentId,
         'paymentStatus': 'paid_held', // Changed to indicate payment is held
         'paymentTimestamp': FieldValue.serverTimestamp(),
         'userName': userName,

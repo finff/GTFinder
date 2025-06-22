@@ -381,6 +381,48 @@ class NotificationService {
     );
   }
 
+  Future<void> createRefundNotification({
+    required String userId,
+    required double amount,
+    required String bookingId,
+    required String reason,
+  }) async {
+    await createNotification(
+      userId: userId,
+      title: 'Payment Refunded',
+      body: 'RM ${amount.toStringAsFixed(2)} has been refunded to your account due to $reason.',
+      type: NotificationType.refund,
+      data: {
+        'refundType': 'payment_refund',
+        'amount': amount,
+        'bookingId': bookingId,
+        'reason': reason,
+      },
+      senderName: 'Admin',
+    );
+  }
+
+  Future<void> createTrainerRefundNotification({
+    required String trainerId,
+    required double amount,
+    required String bookingId,
+    required String reason,
+  }) async {
+    await createNotification(
+      userId: trainerId,
+      title: 'Payment Refunded to User',
+      body: 'RM ${amount.toStringAsFixed(2)} has been refunded to the user due to $reason.',
+      type: NotificationType.refund,
+      data: {
+        'refundType': 'trainer_refund',
+        'amount': amount,
+        'bookingId': bookingId,
+        'reason': reason,
+      },
+      senderName: 'Admin',
+    );
+  }
+
   // Existing methods for backward compatibility
   Future<void> checkAndNotifyCalorieGoal() async {
     final user = _auth.currentUser;

@@ -50,6 +50,8 @@ class _NotificationPageState extends State<NotificationPage> {
         return Icons.pending_actions;
       case NotificationType.paymentReleased:
         return Icons.payment_outlined;
+      case NotificationType.refund:
+        return Icons.money_off;
       case NotificationType.calorieReminder:
         return Icons.local_fire_department;
       case NotificationType.exerciseReminder:
@@ -75,6 +77,8 @@ class _NotificationPageState extends State<NotificationPage> {
         return Colors.orange;
       case NotificationType.paymentReleased:
         return Colors.green;
+      case NotificationType.refund:
+        return Colors.red;
       case NotificationType.calorieReminder:
         return Colors.purple;
       case NotificationType.exerciseReminder:

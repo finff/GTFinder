@@ -27,9 +27,14 @@ class _TrainerFinderPageState extends State<TrainerFinderPage> {
     '09:00 AM',
     '10:00 AM',
     '11:00 AM',
+    '12:00 PM',
     '02:00 PM',
     '03:00 PM',
     '04:00 PM',
+    '05:00 PM',
+    '06:00 PM',
+    '07:00 PM',
+    '08:00 PM',
   ];
 
   void _showFeeFilterDialog() {
@@ -212,7 +217,10 @@ class _TrainerFinderPageState extends State<TrainerFinderPage> {
                     },
                   );
                   if (date != null) {
-                    setState(() => tempSelectedDate = date);
+                    setState(() {
+                      tempSelectedDate = date;
+                      tempSelectedTimeSlot = null; // Reset time slot when date changes
+                    });
                   }
                 },
                 child: Container(
@@ -261,7 +269,7 @@ class _TrainerFinderPageState extends State<TrainerFinderPage> {
                     'Select Time Slot',
                     style: TextStyle(color: Colors.white70),
                   ),
-                  items: _timeSlots.map((String slot) {
+                  items: _getAvailableTimeSlotsForDate(tempSelectedDate).map((String slot) {
                     return DropdownMenuItem<String>(
                       value: slot,
                       child: Text(
@@ -781,5 +789,56 @@ class _TrainerFinderPageState extends State<TrainerFinderPage> {
         ),
       ),
     );
+  }
+
+  List<String> _getAvailableTimeSlotsForDate(DateTime? date) {
+    if (date == null) {
+      return _timeSlots;
+    }
+
+    final now = DateTime.now();
+    final selectedDate = DateTime(date.year, date.month, date.day);
+    
+    // If selected date is today, filter out past time slots
+    final isToday = selectedDate.year == now.year && 
+                   selectedDate.month == now.month && 
+                   selectedDate.day == now.day;
+    
+    return _timeSlots.where((slot) {
+      // If it's today, check if the time slot has passed
+      if (isToday) {
+        final slotTime = _parseTimeSlot(slot);
+        final currentTime = DateTime(now.year, now.month, now.day, now.hour, now.minute);
+        
+        // Add 30 minutes buffer to current time to prevent booking too close to current time
+        final bufferTime = currentTime.add(const Duration(minutes: 30));
+        
+        return slotTime.isAfter(bufferTime);
+      }
+      
+      // If it's a future date, all slots are available
+      return true;
+    }).toList();
+  }
+  
+  DateTime _parseTimeSlot(String timeSlot) {
+    // Parse time slots like "09:00 AM", "02:00 PM"
+    final parts = timeSlot.split(' ');
+    final timeParts = parts[0].split(':');
+    int hour = int.parse(timeParts[0]);
+    final minute = int.parse(timeParts[1]);
+    final period = parts[1];
+    
+    // Convert to 24-hour format
+    if (period == 'PM' && hour != 12) {
+      hour += 12;
+    } else if (period == 'AM' && hour == 12) {
+      hour = 0;
+    }
+    
+    return DateTime(_selectedDate?.year ?? DateTime.now().year, 
+                   _selectedDate?.month ?? DateTime.now().month, 
+                   _selectedDate?.day ?? DateTime.now().day, 
+                   hour, minute);
   }
 } 

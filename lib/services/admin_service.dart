@@ -5,6 +5,9 @@ import '../models/admin_model.dart';
 import '../models/user_model.dart';
 import '../services/notification_service.dart';
 import '../models/notification_model.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'package:rxdart/rxdart.dart';
 
 class AdminService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -199,15 +202,31 @@ class AdminService {
             .toList());
   }
 
-  // Get all escrow payments
+  // Get escrow payments that are available for release (excluding refunded ones)
+  Stream<List<Map<String, dynamic>>> getEscrowPaymentsForRelease() {
+    return _firestore
+        .collection('admin_escrow_payments')
+        .where('adminStatus', whereIn: ['pending', 'held', 'pending_release'])
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .map((snapshot) => snapshot.docs.map((doc) {
+              final data = doc.data();
+              data['id'] = doc.id;
+              return data;
+            }).toList());
+  }
+
+  // Get all escrow payments (including refunded ones for history)
   Stream<List<Map<String, dynamic>>> getAllEscrowPayments() {
     return _firestore
         .collection('admin_escrow_payments')
         .orderBy('createdAt', descending: true)
         .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => {'id': doc.id, ...doc.data()})
-            .toList());
+        .map((snapshot) => snapshot.docs.map((doc) {
+              final data = doc.data();
+              data['id'] = doc.id;
+              return data;
+            }).toList());
   }
 
   // Release payment to trainer
@@ -333,27 +352,351 @@ class AdminService {
   // Create a test trainer
   Future<void> createTestTrainer() async {
     try {
-      // Create auth user for trainer
-      final userCredential = await _auth.createUserWithEmailAndPassword(
-        email: 'trainer@example.com',
-        password: 'trainerpass123',
-      );
+      final user = _auth.currentUser;
+      if (user == null) throw 'No authenticated user found';
 
-      // Create trainer document
-      await _firestore.collection('trainers').doc(userCredential.user!.uid).set({
-        'email': 'trainer@example.com',
+      final trainerData = {
         'name': 'Test Trainer',
-        'createdAt': FieldValue.serverTimestamp(),
-        'isActive': true,
-        'isVerified': false,
+        'email': 'trainer@example.com',
         'specialization': 'General Fitness',
-        'experience': '5 years',
-        'rating': 5.0,
-      });
+        'experience': 5,
+        'sessionFee': 100.0,
+        'isActive': true,
+        'createdAt': FieldValue.serverTimestamp(),
+      };
 
-      print('Test trainer created successfully');
+      await _firestore.collection('trainer').doc('test_trainer_id').set(trainerData);
     } catch (e) {
       print('Error creating test trainer: $e');
+      rethrow;
+    }
+  }
+
+  // Refund payment when trainer cancels booking
+  Future<void> refundPaymentForCancelledBooking({
+    required String bookingId,
+    required String paymentIntentId,
+    required String userId,
+    required String trainerId,
+    required double amount,
+    required String reason,
+  }) async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) throw 'No authenticated user found';
+
+      // Call the refund endpoint
+      final response = await http.post(
+        Uri.parse('https://gtfinder.onrender.com/refund-payment'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({
+          'paymentIntentId': paymentIntentId,
+          'reason': reason,
+        }),
+      );
+
+      if (response.statusCode != 200) {
+        final errorData = json.decode(response.body);
+        throw errorData['error'] ?? 'Failed to refund payment';
+      }
+
+      final refundData = json.decode(response.body);
+      
+      // Start a batch write to update all related documents
+      final batch = _firestore.batch();
+
+      // Create refund record
+      final refundRecord = {
+        'bookingId': bookingId,
+        'paymentIntentId': paymentIntentId,
+        'userId': userId,
+        'trainerId': trainerId,
+        'amount': amount,
+        'refundId': refundData['refundId'],
+        'refundStatus': refundData['status'],
+        'refundReason': reason,
+        'refundedBy': user.uid,
+        'refundedAt': FieldValue.serverTimestamp(),
+        'adminNotes': 'Refunded due to trainer cancellation',
+        'initiatedBy': user.uid == trainerId ? 'trainer' : 'admin',
+      };
+
+      // Add refund record to admin refunds collection
+      final adminRefundRef = _firestore.collection('admin_refunds').doc();
+      batch.set(adminRefundRef, refundRecord);
+
+      // Update user's payment status
+      final userPaymentQuery = await _firestore
+          .collection('users')
+          .doc(userId)
+          .collection('payments')
+          .where('paymentIntentId', isEqualTo: paymentIntentId)
+          .get();
+
+      if (userPaymentQuery.docs.isNotEmpty) {
+        batch.update(userPaymentQuery.docs.first.reference, {
+          'status': 'refunded',
+          'refundId': refundData['refundId'],
+          'refundedAt': FieldValue.serverTimestamp(),
+          'refundReason': reason,
+        });
+      }
+
+      // Update trainer's payment status
+      final trainerPaymentQuery = await _firestore
+          .collection('trainer')
+          .doc(trainerId)
+          .collection('payments')
+          .where('paymentIntentId', isEqualTo: paymentIntentId)
+          .get();
+
+      if (trainerPaymentQuery.docs.isNotEmpty) {
+        batch.update(trainerPaymentQuery.docs.first.reference, {
+          'status': 'refunded',
+          'refundId': refundData['refundId'],
+          'refundedAt': FieldValue.serverTimestamp(),
+          'refundReason': reason,
+        });
+      }
+
+      // Update booking status to include refund information
+      final bookingUpdates = {
+        'paymentStatus': 'refunded',
+        'refundId': refundData['refundId'],
+        'refundedAt': FieldValue.serverTimestamp(),
+        'refundReason': reason,
+        'refundedBy': user.uid,
+      };
+
+      // Update booking in all collections
+      batch.update(
+        _firestore.collection('bookings').doc(bookingId),
+        bookingUpdates,
+      );
+
+      batch.update(
+        _firestore
+            .collection('users')
+            .doc(userId)
+            .collection('bookings')
+            .doc(bookingId),
+        bookingUpdates,
+      );
+
+      batch.update(
+        _firestore
+            .collection('trainer')
+            .doc(trainerId)
+            .collection('bookings')
+            .doc(bookingId),
+        bookingUpdates,
+      );
+
+      // Remove from admin escrow if it exists
+      final escrowQuery = await _firestore
+          .collection('admin_escrow_payments')
+          .where('paymentIntentId', isEqualTo: paymentIntentId)
+          .get();
+
+      if (escrowQuery.docs.isNotEmpty) {
+        batch.update(escrowQuery.docs.first.reference, {
+          'adminStatus': 'refunded',
+          'refundedAt': FieldValue.serverTimestamp(),
+          'refundReason': reason,
+        });
+      }
+
+      await batch.commit();
+
+      // Create notifications for user, confirming the refund has been processed.
+      final notificationService = NotificationService();
+      await notificationService.createRefundNotification(
+        userId: userId,
+        amount: amount,
+        bookingId: bookingId,
+        reason: 'Your booking was cancelled and your refund has been processed by the admin.',
+      );
+
+    } catch (e) {
+      print('Error refunding payment: $e');
+      rethrow;
+    }
+  }
+
+  // Trainer-initiated refund (doesn't require admin authentication)
+  Future<void> processTrainerRefund({
+    required String bookingId,
+    required String paymentIntentId,
+    required String userId,
+    required String trainerId,
+    required double amount,
+    required String reason,
+  }) async {
+    try {
+      // Call the refund endpoint
+      final response = await http.post(
+        Uri.parse('https://gtfinder.onrender.com/refund-payment'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({
+          'paymentIntentId': paymentIntentId,
+          'reason': reason,
+        }),
+      );
+
+      if (response.statusCode != 200) {
+        final errorData = json.decode(response.body);
+        throw errorData['error'] ?? 'Failed to refund payment';
+      }
+
+      final refundData = json.decode(response.body);
+      
+      // Start a batch write to update all related documents
+      final batch = _firestore.batch();
+
+      // Create refund record
+      final refundRecord = {
+        'bookingId': bookingId,
+        'paymentIntentId': paymentIntentId,
+        'userId': userId,
+        'trainerId': trainerId,
+        'amount': amount,
+        'refundId': refundData['refundId'],
+        'refundStatus': refundData['status'],
+        'refundReason': reason,
+        'refundedBy': trainerId,
+        'refundedAt': FieldValue.serverTimestamp(),
+        'adminNotes': 'Refunded due to trainer cancellation',
+        'initiatedBy': 'trainer',
+      };
+
+      // Add refund record to admin refunds collection
+      final adminRefundRef = _firestore.collection('admin_refunds').doc();
+      batch.set(adminRefundRef, refundRecord);
+
+      // Update user's payment status
+      final userPaymentQuery = await _firestore
+          .collection('users')
+          .doc(userId)
+          .collection('payments')
+          .where('paymentIntentId', isEqualTo: paymentIntentId)
+          .get();
+
+      if (userPaymentQuery.docs.isNotEmpty) {
+        batch.update(userPaymentQuery.docs.first.reference, {
+          'status': 'refunded',
+          'refundId': refundData['refundId'],
+          'refundedAt': FieldValue.serverTimestamp(),
+          'refundReason': reason,
+        });
+      }
+
+      // Update trainer's payment status
+      final trainerPaymentQuery = await _firestore
+          .collection('trainer')
+          .doc(trainerId)
+          .collection('payments')
+          .where('paymentIntentId', isEqualTo: paymentIntentId)
+          .get();
+
+      if (trainerPaymentQuery.docs.isNotEmpty) {
+        batch.update(trainerPaymentQuery.docs.first.reference, {
+          'status': 'refunded',
+          'refundId': refundData['refundId'],
+          'refundedAt': FieldValue.serverTimestamp(),
+          'refundReason': reason,
+        });
+      }
+
+      // Update booking status to include refund information
+      final bookingUpdates = {
+        'paymentStatus': 'refunded',
+        'refundId': refundData['refundId'],
+        'refundedAt': FieldValue.serverTimestamp(),
+        'refundReason': reason,
+        'refundedBy': trainerId,
+      };
+
+      // Update booking in all collections
+      batch.update(
+        _firestore.collection('bookings').doc(bookingId),
+        bookingUpdates,
+      );
+
+      batch.update(
+        _firestore
+            .collection('users')
+            .doc(userId)
+            .collection('bookings')
+            .doc(bookingId),
+        bookingUpdates,
+      );
+
+      batch.update(
+        _firestore
+            .collection('trainer')
+            .doc(trainerId)
+            .collection('bookings')
+            .doc(bookingId),
+        bookingUpdates,
+      );
+
+      // Remove from admin escrow and mark as refunded
+      final escrowQuery = await _firestore
+          .collection('admin_escrow_payments')
+          .where('paymentIntentId', isEqualTo: paymentIntentId)
+          .get();
+
+      if (escrowQuery.docs.isNotEmpty) {
+        // Update the escrow payment to mark it as refunded
+        batch.update(escrowQuery.docs.first.reference, {
+          'adminStatus': 'refunded',
+          'refundedAt': FieldValue.serverTimestamp(),
+          'refundReason': reason,
+          'refundId': refundData['refundId'],
+          'refundedBy': trainerId,
+        });
+      } else {
+        // If not found in escrow, check if there's a payment record to move to refunds
+        final paymentQuery = await _firestore
+            .collection('admin_escrow_payments')
+            .where('bookingId', isEqualTo: bookingId)
+            .get();
+
+        if (paymentQuery.docs.isNotEmpty) {
+          // Update the payment to mark it as refunded
+          batch.update(paymentQuery.docs.first.reference, {
+            'adminStatus': 'refunded',
+            'refundedAt': FieldValue.serverTimestamp(),
+            'refundReason': reason,
+            'refundId': refundData['refundId'],
+            'refundedBy': trainerId,
+          });
+        }
+      }
+
+      await batch.commit();
+
+      // Create notifications
+      final notificationService = NotificationService();
+      
+      // Notify user about refund
+      await notificationService.createRefundNotification(
+        userId: userId,
+        amount: amount,
+        bookingId: bookingId,
+        reason: reason,
+      );
+
+      // Notify trainer about refund
+      await notificationService.createTrainerRefundNotification(
+        trainerId: trainerId,
+        amount: amount,
+        bookingId: bookingId,
+        reason: reason,
+      );
+
+    } catch (e) {
+      print('Error processing trainer refund: $e');
       rethrow;
     }
   }
@@ -403,5 +746,92 @@ class AdminService {
     }
 
     print('Announcement sent to ${recipientIds.length} unique recipients.');
+  }
+
+  // When a trainer cancels, this method marks the payment for a manual refund by an admin.
+  Future<void> requestRefundForCancelledBooking({
+    required String bookingId,
+    required String paymentIntentId,
+  }) async {
+    try {
+      final escrowQuery = await _firestore
+          .collection('admin_escrow_payments')
+          .where('paymentIntentId', isEqualTo: paymentIntentId)
+          .get();
+
+      if (escrowQuery.docs.isNotEmpty) {
+        final docId = escrowQuery.docs.first.id;
+        await _firestore
+            .collection('admin_escrow_payments')
+            .doc(docId)
+            .update({
+          'adminStatus': 'pending_refund',
+          'cancellationReason': 'trainer_cancellation',
+          'lastUpdated': FieldValue.serverTimestamp(),
+        });
+      }
+    } catch (e) {
+      print('Error updating payment status to pending_refund: $e');
+      // We don't rethrow because the cancellation should proceed.
+      // The admin will see the cancellation and can handle the refund manually.
+    }
+  }
+
+  // Get all refunds (combines admin_refunds and escrow payments that were refunded)
+  Stream<List<Map<String, dynamic>>> getAllRefunds() {
+    return Rx.combineLatest2(
+      _firestore
+          .collection('admin_refunds')
+          .orderBy('refundedAt', descending: true)
+          .snapshots()
+          .map((snapshot) => snapshot.docs.map((doc) {
+                final data = doc.data();
+                data['id'] = doc.id;
+                data['source'] = 'admin_refunds';
+                return data;
+              }).toList()),
+      _firestore
+          .collection('admin_escrow_payments')
+          .where('adminStatus', isEqualTo: 'refunded')
+          .orderBy('refundedAt', descending: true)
+          .snapshots()
+          .map((snapshot) => snapshot.docs.map((doc) {
+                final data = doc.data();
+                data['id'] = doc.id;
+                data['source'] = 'escrow_refunded';
+                // Map escrow fields to refund fields for consistency
+                data['refundStatus'] = data['adminStatus'] ?? 'succeeded';
+                data['refundReason'] = data['refundReason'] ?? 'Trainer cancellation';
+                data['initiatedBy'] = data['refundedBy'] != null ? 'trainer' : 'admin';
+                return data;
+              }).toList()),
+      (List<Map<String, dynamic>> adminRefunds, List<Map<String, dynamic>> escrowRefunds) {
+        final allRefunds = [...adminRefunds, ...escrowRefunds];
+        // Sort by refundedAt timestamp (most recent first)
+        allRefunds.sort((a, b) {
+          final aTime = a['refundedAt'] as Timestamp?;
+          final bTime = b['refundedAt'] as Timestamp?;
+          if (aTime == null && bTime == null) return 0;
+          if (aTime == null) return 1;
+          if (bTime == null) return -1;
+          return bTime.compareTo(aTime);
+        });
+        return allRefunds;
+      },
+    );
+  }
+
+  // Get escrow payments that are pending a manual refund by an admin.
+  Stream<List<Map<String, dynamic>>> getPaymentsPendingRefund() {
+    return _firestore
+        .collection('admin_escrow_payments')
+        .where('adminStatus', isEqualTo: 'pending_refund')
+        .orderBy('lastUpdated', descending: true)
+        .snapshots()
+        .map((snapshot) => snapshot.docs.map((doc) {
+              final data = doc.data();
+              data['id'] = doc.id;
+              return data;
+            }).toList());
   }
 } 

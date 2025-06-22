@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
+import '../../services/admin_service.dart';
 
 class SchedulePage extends StatefulWidget {
   const SchedulePage({super.key});
@@ -16,9 +17,14 @@ class _SchedulePageState extends State<SchedulePage> {
     '09:00 AM',
     '10:00 AM',
     '11:00 AM',
+    '12:00 PM',
     '02:00 PM',
     '03:00 PM',
     '04:00 PM',
+    '05:00 PM',
+    '06:00 PM',
+    '07:00 PM',
+    '08:00 PM',
   ];
 
   @override
@@ -262,10 +268,25 @@ class _SchedulePageState extends State<SchedulePage> {
                             final bookingData = allBookingsBySlot[timeSlot];
                             final isActiveBooking = activeBookings.containsKey(timeSlot);
 
+                            // Check if the time slot has passed for today
+                            final now = DateTime.now();
+                            final selectedDate = DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day);
+                            final isToday = selectedDate.year == now.year && 
+                                           selectedDate.month == now.month && 
+                                           selectedDate.day == now.day;
+                            
+                            bool isPastTime = false;
+                            if (isToday) {
+                              final slotTime = _parseTimeSlot(timeSlot);
+                              final currentTime = DateTime(now.year, now.month, now.day, now.hour, now.minute);
+                              isPastTime = slotTime.isBefore(currentTime);
+                            }
+
                             // Show the slot as available if:
                             // 1. There's no booking at all
                             // 2. The booking exists but is cancelled or rejected
-                            final isAvailable = !isActiveBooking;
+                            // 3. AND the time slot hasn't passed
+                            final isAvailable = !isActiveBooking && !isPastTime;
 
                             return Container(
                               margin: const EdgeInsets.only(bottom: 16),
@@ -307,8 +328,8 @@ class _SchedulePageState extends State<SchedulePage> {
                                           children: [
                                             Text(
                                               timeSlot,
-                                              style: const TextStyle(
-                                                color: Colors.white,
+                                              style: TextStyle(
+                                                color: isPastTime ? Colors.white.withOpacity(0.5) : Colors.white,
                                                 fontSize: 18,
                                                 fontWeight: FontWeight.bold,
                                               ),
@@ -334,9 +355,9 @@ class _SchedulePageState extends State<SchedulePage> {
                                             ] else ...[
                                               const SizedBox(height: 4),
                                               Text(
-                                                'Available',
+                                                isPastTime ? 'Time Passed' : 'Available',
                                                 style: TextStyle(
-                                                  color: Colors.white.withOpacity(0.7),
+                                                  color: isPastTime ? Colors.red.withOpacity(0.7) : Colors.white.withOpacity(0.7),
                                                   fontSize: 14,
                                                 ),
                                               ),
@@ -604,7 +625,7 @@ class _SchedulePageState extends State<SchedulePage> {
               style: TextStyle(color: Colors.white),
             ),
             content: const Text(
-              'Are you sure you want to cancel this booking? This action cannot be undone.',
+              'Are you sure you want to cancel this booking? This action cannot be undone and will trigger a refund to the user.',
               style: TextStyle(color: Colors.white70),
             ),
             actions: [
@@ -696,6 +717,24 @@ class _SchedulePageState extends State<SchedulePage> {
 
         batch.set(trainerBookingRef, cancelledData, SetOptions(merge: true));
         batch.set(userBookingRef, cancelledData, SetOptions(merge: true));
+
+        // Check if payment needs to be refunded
+        final paymentStatus = booking['paymentStatus'];
+        final paymentIntentId = booking['paymentIntentId'];
+        
+        if ((paymentStatus == 'paid' || paymentStatus == 'paid_held') && paymentIntentId != null) {
+          // Mark payment for admin refund instead of processing automatically
+          try {
+            final adminService = AdminService();
+            await adminService.requestRefundForCancelledBooking(
+              bookingId: booking['bookingId'],
+              paymentIntentId: paymentIntentId,
+            );
+          } catch (e) {
+            print('Error flagging for refund: $e');
+            // Continue with cancellation. Admin can manually check.
+          }
+        }
       }
 
       // Commit the batch
@@ -793,5 +832,23 @@ class _SchedulePageState extends State<SchedulePage> {
       default:
         return 'AVAILABLE';
     }
+  }
+
+  DateTime _parseTimeSlot(String timeSlot) {
+    // Parse time slots like "09:00 AM", "02:00 PM"
+    final parts = timeSlot.split(' ');
+    final timeParts = parts[0].split(':');
+    int hour = int.parse(timeParts[0]);
+    final minute = int.parse(timeParts[1]);
+    final period = parts[1];
+    
+    // Convert to 24-hour format
+    if (period == 'PM' && hour != 12) {
+      hour += 12;
+    } else if (period == 'AM' && hour == 12) {
+      hour = 0;
+    }
+    
+    return DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day, hour, minute);
   }
 } 

@@ -64,6 +64,54 @@ app.post('/cancel-payment-intent', async (req, res) => {
   }
 });
 
-app.listen(8080, '0.0.0.0', () => {
-  console.log(`Server running on port 8080`);
+app.post('/refund-payment', async (req, res) => {
+  try {
+    const { paymentIntentId, reason } = req.body;
+
+    if (!paymentIntentId) {
+      return res.status(400).json({ error: 'Payment Intent ID is required' });
+    }
+    
+    // Retrieve the payment intent to check its status
+    const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
+    
+    // If the payment was successfully captured, refund it.
+    if (paymentIntent.status === 'succeeded') {
+      const refund = await stripe.refunds.create({
+        payment_intent: paymentIntentId,
+        reason: reason || 'requested_by_customer',
+      });
+      
+      return res.json({
+        success: true,
+        refundId: refund.id,
+        status: refund.status,
+      });
+    } 
+    // If the payment was authorized but not captured, simply cancel it.
+    else if (paymentIntent.status === 'requires_capture') {
+      const cancelledIntent = await stripe.paymentIntents.cancel(paymentIntentId);
+      return res.json({
+        success: true,
+        status: cancelledIntent.status, // will be 'canceled'
+      });
+    } 
+    // For any other status (e.g., 'canceled', 'processing'), do nothing.
+    else {
+      return res.status(400).json({
+        success: false,
+        status: paymentIntent.status,
+        message: `Payment cannot be refunded or canceled in its current state: ${paymentIntent.status}`,
+      });
+    }
+  } catch (e) {
+    console.error('--- ERROR IN /refund-payment ---');
+    console.error(e);
+    // Ensure a JSON response is always sent on error
+    return res.status(500).json({ error: e.message });
+  }
+});
+
+app.listen(port, '0.0.0.0', () => {
+  console.log(`Server running on port ${port}`);
 }); 

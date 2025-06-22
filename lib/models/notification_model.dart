@@ -7,6 +7,7 @@ enum NotificationType {
   paymentReceived,
   paymentHeld,
   paymentReleased,
+  refund,
   calorieReminder,
   exerciseReminder,
   announcement,
