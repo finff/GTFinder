@@ -286,11 +286,12 @@ class BookingViewPage extends StatelessWidget {
                                                     builder: (context) => PaymentPage(
                                                       bookingId: bookingDoc.id,
                                                       trainerId: booking['trainerId'],
-                                                      trainerName: booking['trainerName'],
-                                                      specialization: booking['specialization'],
-                                                      experience: booking['experience'],
-                                                      bookingDateTime: booking['formattedDateTime'],
                                                       amount: sessionFee,
+                                                      trainerName: trainerName,
+                                                      specialization: booking['trainerSpecialization'] as String? ?? 'No specialization',
+                                                      experience: booking['trainerExperience'] as int? ?? 0,
+                                                      bookingDateTime:
+                                                          booking['formattedDateTime'] ?? 'No schedule',
                                                     ),
                                                   ),
                                                 );

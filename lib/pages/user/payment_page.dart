@@ -136,18 +136,29 @@ class _PaymentPageState extends State<PaymentPage> {
       );
 
       if (response.statusCode != 200) {
-        throw Exception('Failed to create payment intent: ${response.body}');
+        // Handle server error gracefully
+        print('Server error creating payment intent: ${response.body}');
+        throw Exception(
+            'Could not initiate payment. The server responded with an error.');
       }
 
-      final paymentIntent = jsonDecode(response.body);
-      _paymentIntentId = paymentIntent['id'];
+      final paymentIntentData = jsonDecode(response.body);
+      final clientSecret = paymentIntentData['clientSecret'] as String?;
+      _paymentIntentId = paymentIntentData['paymentIntentId'] as String?;
+
+      if (clientSecret == null || _paymentIntentId == null) {
+        // Handle missing data from server
+        print('Server response missing required data.');
+        throw Exception(
+            'Could not initiate payment. Invalid response from server.');
+      }
 
       // Initialize payment sheet
       print('Initializing payment sheet...');
       await Stripe.instance.initPaymentSheet(
         paymentSheetParameters: SetupPaymentSheetParameters(
           merchantDisplayName: 'GTFinder',
-          paymentIntentClientSecret: paymentIntent['clientSecret'],
+          paymentIntentClientSecret: clientSecret, // Use the safe variable
           style: ThemeMode.dark,
           appearance: PaymentSheetAppearance(
             colors: PaymentSheetAppearanceColors(
@@ -251,7 +262,7 @@ class _PaymentPageState extends State<PaymentPage> {
         // If we get here, payment was successful
         print('Payment successful, updating Firestore...');
         // Update Firestore in the background
-        await _updateFirestore(user.uid, userName, paymentIntent['paymentIntentId']);
+        await _updateFirestore(user.uid, userName, _paymentIntentId!);
 
         if (!mounted) return;
 

@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:geolocator/geolocator.dart';
 import './booking_schedule_page.dart';
 import 'package:intl/intl.dart';
 import '../../services/notification_service.dart';
+import '../../services/trainer_service.dart';
+import '../../models/trainer_model.dart';
 
 class TrainerFinderPage extends StatefulWidget {
   const TrainerFinderPage({super.key});
@@ -22,6 +25,11 @@ class _TrainerFinderPageState extends State<TrainerFinderPage> {
 
   String? _selectedTimeSlot;
   DateTime? _selectedDate;
+  
+  Position? _currentPosition;
+  bool _isLoadingLocation = false;
+  List<TrainerModel> _trainers = [];
+  bool _isLoadingTrainers = false;
 
   final List<String> _timeSlots = [
     '09:00 AM',
@@ -36,6 +44,127 @@ class _TrainerFinderPageState extends State<TrainerFinderPage> {
     '07:00 PM',
     '08:00 PM',
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _getCurrentLocation();
+  }
+
+  Future<void> _getCurrentLocation() async {
+    setState(() {
+      _isLoadingLocation = true;
+    });
+
+    try {
+      final position = await TrainerService.getCurrentLocation();
+      if (position != null) {
+        setState(() {
+          _currentPosition = position;
+          _isLoadingLocation = false;
+        });
+        await _loadTrainers();
+      } else {
+        setState(() {
+          _isLoadingLocation = false;
+        });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Unable to get your location. Showing all trainers.'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+        await _loadTrainers();
+      }
+    } catch (e) {
+      setState(() {
+        _isLoadingLocation = false;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error getting location: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      await _loadTrainers();
+    }
+  }
+
+  Future<void> _loadTrainers() async {
+    setState(() {
+      _isLoadingTrainers = true;
+    });
+
+    try {
+      List<TrainerModel> trainers;
+      
+      if (_currentPosition != null) {
+        // Use location-based search with 30km radius
+        if (_selectedDate != null && _selectedTimeSlot != null) {
+          trainers = await TrainerService.getAvailableTrainers(
+            _currentPosition!,
+            selectedDate: _selectedDate!,
+            selectedTimeSlot: _selectedTimeSlot!,
+            searchQuery: _searchQuery.isEmpty ? null : _searchQuery,
+            minFee: _minFee,
+            maxFee: _maxFee,
+            userId: _auth.currentUser?.uid,
+            radius: 30000, // 30km
+          );
+        } else {
+          trainers = await TrainerService.getNearbyTrainers(
+            _currentPosition!,
+            searchQuery: _searchQuery.isEmpty ? null : _searchQuery,
+            minFee: _minFee,
+            maxFee: _maxFee,
+            radius: 30000, // 30km
+          );
+        }
+      } else {
+        // Fallback to original method without location
+        trainers = await _getTrainersWithoutLocation();
+      }
+
+      setState(() {
+        _trainers = trainers;
+        _isLoadingTrainers = false;
+      });
+    } catch (e) {
+      setState(() {
+        _isLoadingTrainers = false;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error loading trainers: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<List<TrainerModel>> _getTrainersWithoutLocation() async {
+    // Original method for backward compatibility
+    final querySnapshot = await _firestore.collection('trainer').get();
+    return querySnapshot.docs.map((doc) {
+      final data = doc.data();
+      return TrainerModel.fromMap(data, doc.id);
+    }).where((trainer) {
+      final name = trainer.name.toLowerCase();
+      final specialization = trainer.specialization.toLowerCase();
+      final matchesQuery = _searchQuery.isEmpty || 
+          name.contains(_searchQuery.toLowerCase()) || 
+          specialization.contains(_searchQuery.toLowerCase());
+      final matchesMin = _minFee == null || trainer.sessionFee >= _minFee!;
+      final matchesMax = _maxFee == null || trainer.sessionFee <= _maxFee!;
+      return matchesQuery && matchesMin && matchesMax;
+    }).toList();
+  }
 
   void _showFeeFilterDialog() {
     final minController = TextEditingController(text: _minFee?.toString() ?? '');
@@ -135,6 +264,7 @@ class _TrainerFinderPageState extends State<TrainerFinderPage> {
                         _maxFee = null;
                       });
                       Navigator.pop(context);
+                      _loadTrainers();
                     },
                     style: TextButton.styleFrom(
                       foregroundColor: Colors.white,
@@ -154,6 +284,7 @@ class _TrainerFinderPageState extends State<TrainerFinderPage> {
                         _maxFee = double.tryParse(maxController.text);
                       });
                       Navigator.pop(context);
+                      _loadTrainers();
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.blue,
@@ -316,6 +447,7 @@ class _TrainerFinderPageState extends State<TrainerFinderPage> {
                   _selectedTimeSlot = tempSelectedTimeSlot;
                 });
                 Navigator.pop(context);
+                _loadTrainers();
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.blue,
@@ -402,6 +534,11 @@ class _TrainerFinderPageState extends State<TrainerFinderPage> {
         ),
         actions: [
           IconButton(
+            icon: const Icon(Icons.my_location, color: Colors.white),
+            onPressed: _getCurrentLocation,
+            tooltip: 'Refresh Location',
+          ),
+          IconButton(
             icon: const Icon(Icons.access_time, color: Colors.white),
             onPressed: _showAvailabilityFilterDialog,
             tooltip: 'Filter by Availability',
@@ -429,251 +566,130 @@ class _TrainerFinderPageState extends State<TrainerFinderPage> {
             children: [
               Padding(
                 padding: const EdgeInsets.all(24),
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.2),
-                        blurRadius: 15,
-                        offset: const Offset(0, 5),
+                child: Column(
+                  children: [
+                    // Location indicator
+                    if (_currentPosition != null)
+                      Container(
+                        margin: const EdgeInsets.only(bottom: 12),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: Colors.green.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: Colors.green.withOpacity(0.3)),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.my_location,
+                              color: Colors.green,
+                              size: 16,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Finding trainers within 30km',
+                              style: TextStyle(
+                                color: Colors.green,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                    ],
-                  ),
-                  child: TextField(
-                    style: const TextStyle(color: Colors.white),
-                    decoration: InputDecoration(
-                      hintText: 'Search trainers...',
-                      hintStyle: TextStyle(color: Colors.white.withOpacity(0.7)),
-                      prefixIcon: Icon(Icons.search, color: Colors.white.withOpacity(0.7)),
-                      border: InputBorder.none,
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                    // Search field
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.2),
+                            blurRadius: 15,
+                            offset: const Offset(0, 5),
+                          ),
+                        ],
+                      ),
+                      child: TextField(
+                        style: const TextStyle(color: Colors.white),
+                        decoration: InputDecoration(
+                          hintText: 'Search trainers...',
+                          hintStyle: TextStyle(color: Colors.white.withOpacity(0.7)),
+                          prefixIcon: Icon(Icons.search, color: Colors.white.withOpacity(0.7)),
+                          border: InputBorder.none,
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                        ),
+                        onChanged: (value) {
+                          setState(() {
+                            _searchQuery = value.toLowerCase();
+                          });
+                          // Debounce search to avoid too many API calls
+                          Future.delayed(const Duration(milliseconds: 500), () {
+                            if (mounted) {
+                              _loadTrainers();
+                            }
+                          });
+                        },
+                      ),
                     ),
-                    onChanged: (value) {
-                      setState(() {
-                        _searchQuery = value.toLowerCase();
-                      });
-                    },
-                  ),
+                  ],
                 ),
               ),
               Expanded(
-                child: StreamBuilder<QuerySnapshot>(
-                  stream: _firestore.collection('trainer').snapshots(),
-                  builder: (context, snapshot) {
-                    if (snapshot.hasError) {
-                      return Center(
-                        child: Text(
-                          'Error: ${snapshot.error}',
-                          style: const TextStyle(color: Colors.white),
-                        ),
-                      );
-                    }
-
-                    if (snapshot.connectionState == ConnectionState.waiting) {
-                      return const Center(
+                child: _isLoadingLocation || _isLoadingTrainers
+                    ? const Center(
                         child: CircularProgressIndicator(color: Colors.white),
-                      );
-                    }
-
-                    final trainers = snapshot.data?.docs ?? [];
-                    if (_selectedDate != null && _selectedTimeSlot != null) {
-                      // Pre-filter trainers using FutureBuilder with all filters
-                      return FutureBuilder<List<QueryDocumentSnapshot>>(
-                        future: () async {
-                          List<QueryDocumentSnapshot> availableTrainers = [];
-                          final user = _auth.currentUser;
-                          String? userId = user?.uid;
-                          for (final doc in trainers) {
-                            final data = doc.data() as Map<String, dynamic>;
-                            final name = (data['name'] ?? '').toString().toLowerCase();
-                            final specialization = (data['specialization'] ?? '').toString().toLowerCase();
-                            final sessionFee = (data['sessionFee'] is num)
-                                ? (data['sessionFee'] as num).toDouble()
-                                : 50.0;
-                            final matchesQuery = name.contains(_searchQuery) || specialization.contains(_searchQuery);
-                            final matchesMin = _minFee == null || sessionFee >= _minFee!;
-                            final matchesMax = _maxFee == null || sessionFee <= _maxFee!;
-                            if (!(matchesQuery && matchesMin && matchesMax)) continue;
-
-                            final trainerId = doc.id;
-                            // Check the root bookings collection for user bookings at this slot
-                            final userBookingSnapshot = await _firestore
-                                .collection('bookings')
-                                .where('userId', isEqualTo: userId)
-                                .where('trainerId', isEqualTo: trainerId)
-                                .where('timeSlot', isEqualTo: _selectedTimeSlot)
-                                .where('status', whereIn: ['pending', 'confirmed'])
-                                .get();
-                            final userHasBooking = userBookingSnapshot.docs.any((doc) {
-                              final bookingDate = (doc['bookingDate'] as Timestamp).toDate();
-                              return bookingDate.year == _selectedDate!.year &&
-                                     bookingDate.month == _selectedDate!.month &&
-                                     bookingDate.day == _selectedDate!.day;
-                            });
-                            if (!userHasBooking) {
-                              availableTrainers.add(doc);
-                            }
-                          }
-                          return availableTrainers;
-                        }(),
-                        builder: (context, asyncSnapshot) {
-                          if (asyncSnapshot.connectionState == ConnectionState.waiting) {
-                            return const Center(child: CircularProgressIndicator(color: Colors.white));
-                          }
-                          final filteredTrainers = asyncSnapshot.data ?? [];
-                          if (filteredTrainers.isEmpty) {
-                            return Center(
-                              child: Text(
-                                _searchQuery.isEmpty
-                                    ? 'No trainers available'
-                                    : 'No trainers found matching "$_searchQuery"',
-                                style: const TextStyle(color: Colors.white),
-                              ),
-                            );
-                          }
-                          return ListView.builder(
+                      )
+                    : _trainers.isEmpty
+                        ? Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.location_off,
+                                  size: 64,
+                                  color: Colors.white.withOpacity(0.5),
+                                ),
+                                const SizedBox(height: 16),
+                                Text(
+                                  _searchQuery.isEmpty
+                                      ? 'No trainers found nearby'
+                                      : 'No trainers found matching "$_searchQuery"',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 16,
+                                  ),
+                                ),
+                                                                 if (_currentPosition != null) ...[
+                                   const SizedBox(height: 8),
+                                   Text(
+                                     'Searching within 30km of your location',
+                                     style: TextStyle(
+                                       color: Colors.white.withOpacity(0.7),
+                                       fontSize: 14,
+                                     ),
+                                   ),
+                                 ],
+                              ],
+                            ),
+                          )
+                        : ListView.builder(
                             padding: const EdgeInsets.all(24),
-                            itemCount: filteredTrainers.length,
+                            itemCount: _trainers.length,
                             itemBuilder: (context, index) {
-                              final trainerDoc = filteredTrainers[index];
-                              final trainerData = trainerDoc.data() as Map<String, dynamic>;
-                              final trainerId = trainerDoc.id;
-                              final trainerName = trainerData['name'] ?? 'Unknown';
-                              final specialization = trainerData['specialization'] ?? 'Not specified';
-                              final experience = trainerData['experience']?.toString() ?? '0';
-                              final sessionFee = trainerData['sessionFee']?.toDouble() ?? 50.0;
-                              return Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  _buildTrainerCard(trainerId, trainerName, specialization, experience, sessionFee, context),
-                                  if (_selectedDate != null && _selectedTimeSlot != null)
-                                    StreamBuilder<QuerySnapshot>(
-                                      stream: _firestore
-                                          .collection('trainer')
-                                          .doc(trainerId)
-                                          .collection('bookings')
-                                          .where('bookingDate', isGreaterThanOrEqualTo: Timestamp.fromDate(
-                                            DateTime(_selectedDate!.year, _selectedDate!.month, _selectedDate!.day).toUtc(),
-                                          ))
-                                          .where('bookingDate', isLessThan: Timestamp.fromDate(
-                                            DateTime(_selectedDate!.year, _selectedDate!.month, _selectedDate!.day).toUtc().add(const Duration(days: 1)),
-                                          ))
-                                          .where('timeSlot', isEqualTo: _selectedTimeSlot)
-                                          .snapshots(),
-                                      builder: (context, bookingSnapshot) {
-                                        if (bookingSnapshot.connectionState == ConnectionState.waiting) {
-                                          return const SizedBox.shrink();
-                                        }
-                                        final docs = bookingSnapshot.data?.docs ?? [];
-                                        if (docs.isEmpty) {
-                                          return const SizedBox.shrink();
-                                        }
-                                        return Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          children: [],
-                                        );
-                                      },
-                                    ),
-                                ],
+                              final trainer = _trainers[index];
+                              return _buildTrainerCard(
+                                trainer.id,
+                                trainer.name,
+                                trainer.specialization,
+                                trainer.experience.toString(),
+                                trainer.sessionFee,
+                                context,
+                                trainer: trainer,
                               );
                             },
-                          );
-                        },
-                      );
-                    }
-
-                    // Fallback to original ListView if no filter
-                    return FutureBuilder<List<QueryDocumentSnapshot?>>(
-                      future: Future.wait(
-                        trainers.map((doc) async {
-                          final data = doc.data() as Map<String, dynamic>;
-                          final name = (data['name'] ?? '').toString().toLowerCase();
-                          final specialization = (data['specialization'] ?? '').toString().toLowerCase();
-                          final sessionFee = (data['sessionFee'] is num)
-                              ? (data['sessionFee'] as num).toDouble()
-                              : 50.0;
-                          final matchesQuery = name.contains(_searchQuery) || specialization.contains(_searchQuery);
-                          final matchesMin = _minFee == null || sessionFee >= _minFee!;
-                          final matchesMax = _maxFee == null || sessionFee <= _maxFee!;
-
-                          return matchesQuery && matchesMin && matchesMax ? doc : null;
-                        }),
-                      ),
-                      builder: (context, snapshot) {
-                        if (snapshot.connectionState == ConnectionState.waiting) {
-                          return const Center(
-                            child: CircularProgressIndicator(color: Colors.white),
-                          );
-                        }
-
-                        final filteredTrainers = snapshot.data?.where((doc) => doc != null).cast<QueryDocumentSnapshot>().toList() ?? [];
-
-                        if (filteredTrainers.isEmpty) {
-                          return Center(
-                            child: Text(
-                              _searchQuery.isEmpty
-                                  ? 'No trainers available'
-                                  : 'No trainers found matching "$_searchQuery"',
-                              style: const TextStyle(color: Colors.white),
-                            ),
-                          );
-                        }
-
-                        return ListView.builder(
-                          padding: const EdgeInsets.all(24),
-                          itemCount: filteredTrainers.length,
-                          itemBuilder: (context, index) {
-                            final trainerDoc = filteredTrainers[index];
-                            final trainerData = trainerDoc.data() as Map<String, dynamic>;
-                            final trainerId = trainerDoc.id;
-                            final trainerName = trainerData['name'] ?? 'Unknown';
-                            final specialization = trainerData['specialization'] ?? 'Not specified';
-                            final experience = trainerData['experience']?.toString() ?? '0';
-                            final sessionFee = trainerData['sessionFee']?.toDouble() ?? 50.0;
-
-                            // Add a StreamBuilder to show debug info for bookings
-                            return Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                _buildTrainerCard(trainerId, trainerName, specialization, experience, sessionFee, context),
-                                if (_selectedDate != null && _selectedTimeSlot != null)
-                                  StreamBuilder<QuerySnapshot>(
-                                    stream: _firestore
-                                        .collection('trainer')
-                                        .doc(trainerId)
-                                        .collection('bookings')
-                                        .where('bookingDate', isGreaterThanOrEqualTo: Timestamp.fromDate(
-                                          DateTime(_selectedDate!.year, _selectedDate!.month, _selectedDate!.day).toUtc(),
-                                        ))
-                                        .where('bookingDate', isLessThan: Timestamp.fromDate(
-                                          DateTime(_selectedDate!.year, _selectedDate!.month, _selectedDate!.day).toUtc().add(const Duration(days: 1)),
-                                        ))
-                                        .where('timeSlot', isEqualTo: _selectedTimeSlot)
-                                        .snapshots(),
-                                    builder: (context, bookingSnapshot) {
-                                      if (bookingSnapshot.connectionState == ConnectionState.waiting) {
-                                        return const SizedBox.shrink();
-                                      }
-                                      final docs = bookingSnapshot.data?.docs ?? [];
-                                      if (docs.isEmpty) {
-                                        return const SizedBox.shrink();
-                                      }
-                                      return Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [],
-                                      );
-                                    },
-                                  ),
-                              ],
-                            );
-                          },
-                        );
-                      },
-                    );
-                  },
-                ),
+                          ),
               ),
             ],
           ),
@@ -682,7 +698,7 @@ class _TrainerFinderPageState extends State<TrainerFinderPage> {
     );
   }
 
-  Widget _buildTrainerCard(String trainerId, String trainerName, String specialization, String experience, double sessionFee, BuildContext context) {
+  Widget _buildTrainerCard(String trainerId, String trainerName, String specialization, String experience, double sessionFee, BuildContext context, {TrainerModel? trainer}) {
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
@@ -746,6 +762,39 @@ class _TrainerFinderPageState extends State<TrainerFinderPage> {
                 fontWeight: FontWeight.bold,
               ),
             ),
+            if (trainer?.hasLocation == true && trainer?.distance != null) ...[
+              const SizedBox(height: 4),
+              Row(
+                children: [
+                  Icon(
+                    Icons.location_on,
+                    color: Colors.blue.shade300,
+                    size: 16,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    TrainerService.formatDistance(trainer!.distance!),
+                    style: TextStyle(
+                      color: Colors.blue.shade300,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+            if (trainer?.address != null && trainer!.address!.isNotEmpty) ...[
+              const SizedBox(height: 4),
+              Text(
+                trainer!.address!,
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.6),
+                  fontSize: 12,
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
           ],
         ),
         trailing: ElevatedButton(

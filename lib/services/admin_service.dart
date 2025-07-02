@@ -243,138 +243,70 @@ class AdminService {
   }
 
   // Release payment to trainer
-  Future<void> releasePaymentToTrainer(
-    String paymentId, {
-    required String bookingId,
-    required String trainerId,
-    required String userId,
-    required String userName,
-    required double amount,
-  }) async {
-    final batch = _firestore.batch();
-    final escrowDocRef =
-        _firestore.collection('admin_escrow_payments').doc(paymentId);
-
+  Future<void> releasePaymentToTrainer(String paymentId, String paymentIntentId) async {
     try {
-      final escrowDoc = await escrowDocRef.get();
-      if (!escrowDoc.exists) {
-        throw 'Escrow payment not found';
-      }
-
-      final escrowData = escrowDoc.data()!;
-      final paymentIntentId = escrowData['paymentIntentId'];
-      
-      if (paymentIntentId == null) {
-        throw Exception('Payment Intent ID not found in the payment document.');
-      }
-      
-      // 1. Capture the payment via your backend
-      // TODO: Replace with your actual server URL
-      final url = Uri.parse('https://gt-stripe-server.onrender.com/capture-payment-intent');
-      final response = await http.post(
-        url,
+      // --- Step 1: Capture Payment Intent on Stripe ---
+      final captureResponse = await http.post(
+        Uri.parse('https://gtfinder.onrender.com/capture-payment-intent'),
         headers: {'Content-Type': 'application/json'},
-        body: json.encode({'paymentIntentId': paymentIntentId}),
+        body: jsonEncode({'paymentIntentId': paymentIntentId}),
       );
 
-      if (response.statusCode != 200) {
-        // If capture fails, log the error and stop execution.
-        String errorMessage;
-        try {
-          // Try to parse the error response as JSON
-          final errorBody = json.decode(response.body);
-          errorMessage = errorBody['error'] ?? 'Unknown error from server.';
-        } catch (e) {
-          // If parsing fails, it's likely an HTML error page (e.g., 404 Not Found)
-          errorMessage =
-              'Failed to capture payment. The server returned an unexpected response (Status code: ${response.statusCode}). Please ensure the backend is deployed and the endpoint is correct.';
-        }
-        print('Error releasing payment: $errorMessage');
-        throw Exception(errorMessage);
+      if (captureResponse.statusCode != 200) {
+        print(
+            'Failed to capture payment intent: ${captureResponse.body}. Status: ${captureResponse.statusCode}');
+        throw Exception(
+            'Failed to capture payment. It might have already been captured or cancelled.');
+      } else {
+        print('Payment successfully captured in Stripe.');
       }
-      
-      // 2. If capture is successful, proceed with Firestore updates
-      print('Payment captured successfully. Proceeding with Firestore updates.');
 
-      // Update admin escrow status
-      batch.update(escrowDocRef, {
-        'adminStatus': 'released',
-        'releasedAt': FieldValue.serverTimestamp(),
-        'releasedBy': _auth.currentUser?.uid,
-      });
+      final batch = _firestore.batch();
+      final escrowDocRef =
+          _firestore.collection('admin_escrow_payments').doc(paymentId);
+      final escrowDoc = await escrowDocRef.get();
 
-      // Update trainer's payment status
-      batch.update(
-        _firestore
-            .collection('trainer')
-            .doc(trainerId)
-            .collection('payments')
-            .doc(paymentId),
-        {
-          'status': 'completed',
-          'escrowStatus': 'released',
-          'releasedAt': FieldValue.serverTimestamp(),
-        },
-      );
+      if (!escrowDoc.exists) {
+        throw Exception('Escrow payment document not found.');
+      }
+      final escrowData = escrowDoc.data()!;
+      final trainerId = escrowData['trainerId'];
+      final bookingId = escrowData['bookingId'];
 
-      // Update user's payment status
-      batch.update(
-        _firestore
-            .collection('users')
-            .doc(userId)
-            .collection('payments')
-            .doc(paymentId),
-        {
-          'status': 'completed',
-          'escrowStatus': 'released',
-          'releasedAt': FieldValue.serverTimestamp(),
-        },
-      );
+      // Update the status of the escrow payment
+      batch.update(escrowDocRef, {'adminStatus': 'released'});
 
-      // Update booking status and add calorie sharing expiry
-      final bookingUpdates = {
-        'escrowStatus': 'released',
-        'sessionStatus': 'completed',
-        'paymentReleasedAt': FieldValue.serverTimestamp(),
-        'calorieSharingExpiry':
-            Timestamp.fromDate(DateTime.now().add(const Duration(hours: 24))),
-      };
+      // Update the status in the original booking
+      batch.update(_firestore.collection('bookings').doc(bookingId),
+          {'paymentStatus': 'released'});
 
-      // Update booking in all relevant collections
-      batch.update(
-        _firestore.collection('bookings').doc(bookingId),
-        bookingUpdates,
-      );
-      batch.update(
-        _firestore
-            .collection('users')
-            .doc(userId)
-            .collection('bookings')
-            .doc(bookingId),
-        bookingUpdates,
-      );
-      batch.update(
-        _firestore
-            .collection('trainer')
-            .doc(trainerId)
-            .collection('bookings')
-            .doc(bookingId),
-        bookingUpdates,
-      );
+      // Set the calorie sharing expiry date
+      final bookingDoc =
+          await _firestore.collection('bookings').doc(bookingId).get();
+      if (bookingDoc.exists) {
+        final sessionTimestamp =
+            bookingDoc.data()?['sessionDateTime'] as Timestamp?;
+        if (sessionTimestamp != null) {
+          final expiryTime =
+              sessionTimestamp.toDate().add(const Duration(hours: 24));
+          batch.update(_firestore.collection('bookings').doc(bookingId), {
+            'calorieSharingExpiry': Timestamp.fromDate(expiryTime),
+          });
+        }
+      }
 
       await batch.commit();
 
-      // 3. Send notifications
+      // Create notification for trainer AFTER the batch commits
       final notificationService = NotificationService();
       await notificationService.createPaymentReleasedNotification(
         trainerId: trainerId,
-        userName: userName,
-        amount: amount,
+        userName: escrowData['userName'],
+        amount: escrowData['amount'],
         bookingId: bookingId,
       );
-
     } catch (e) {
-      print('Error releasing payment: $e');
+      print('Error releasing payment to trainer: $e');
       rethrow;
     }
   }

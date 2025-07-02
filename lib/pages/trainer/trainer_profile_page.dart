@@ -245,6 +245,16 @@ class _TrainerProfilePageState extends State<TrainerProfilePage> {
                       _buildInfoTile(Icons.star_outline, 'Experience', '${_userData?['experience'] ?? '0'} years'),
                       const SizedBox(height: 16),
                       _buildInfoTile(Icons.attach_money, 'Session Fee', 'RM ${_userData?['sessionFee']?.toStringAsFixed(2) ?? '50.00'}'),
+                      const SizedBox(height: 16),
+                      _buildInfoTile(Icons.location_on, 'Address', _userData?['address'] ?? 'Not set'),
+                      if (_userData?['latitude'] != null && _userData?['longitude'] != null) ...[
+                        const SizedBox(height: 16),
+                        _buildInfoTile(
+                          Icons.my_location,
+                          'Location',
+                          '${_userData!['latitude'].toStringAsFixed(4)}, ${_userData!['longitude'].toStringAsFixed(4)}',
+                        ),
+                      ],
                     ],
                   ),
                 ),

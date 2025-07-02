@@ -701,43 +701,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                   ],
                 ),
                 trailing: ElevatedButton(
-                  onPressed: () async {
-                    final bool confirm = await _showConfirmationDialog(
-                      context,
-                      'Release Payment?',
-                      'This will capture the payment from the user and transfer the funds to the trainer. This action cannot be undone.',
-                    );
-                    if (confirm) {
-                      try {
-                        await _adminService
-                            .releasePaymentToTrainer(
-                          payment['id'],
-                          bookingId: payment['bookingId'],
-                          trainerId: payment['trainerId'],
-                          userId: payment['userId'],
-                          userName: payment['userName'],
-                          amount: (payment['amount'] as num).toDouble(),
-                        );
-                        ScaffoldMessenger.of(context)
-                            .showSnackBar(
-                          const SnackBar(
-                            content: Text(
-                                'Payment released successfully!'),
-                            backgroundColor: Colors.green,
-                          ),
-                        );
-                      } catch (e) {
-                        ScaffoldMessenger.of(context)
-                            .showSnackBar(
-                          SnackBar(
-                            content: Text(
-                                'Failed to release payment: $e'),
-                            backgroundColor: Colors.red,
-                          ),
-                        );
-                      }
-                    }
-                  },
+                  onPressed: () => _showReleasePaymentDialog(payment),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.green.shade700,
                     foregroundColor: Colors.white,
@@ -989,6 +953,68 @@ class _AdminDashboardState extends State<AdminDashboard> {
           },
         );
       },
+    );
+  }
+
+  void _showReleasePaymentDialog(Map<String, dynamic> payment) {
+    final amount = payment['amount']?.toDouble() ?? 0.0;
+    final userName = payment['userName'] ?? 'Unknown User';
+    final trainerName = payment['trainerName'] ?? 'Unknown Trainer';
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF212E83),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        title: const Text(
+          'Release Payment',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
+        content: Text(
+          'Are you sure you want to release RM ${amount.toStringAsFixed(2)} to $trainerName for the session with $userName?',
+          style: const TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            child: const Text('Cancel', style: TextStyle(color: Colors.white70)),
+            onPressed: () => Navigator.pop(context),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.green.shade700,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Release Payment'),
+            onPressed: () async {
+              try {
+                await _adminService.releasePaymentToTrainer(
+                  payment['id'],
+                  payment['paymentIntentId'],
+                );
+                if (!mounted) return;
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Payment released to $trainerName'),
+                    backgroundColor: Colors.green,
+                  ),
+                );
+              } catch (e) {
+                if (!mounted) return;
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Error releasing payment: $e'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+              }
+            },
+          ),
+        ],
+      ),
     );
   }
 
@@ -1583,44 +1609,6 @@ class _AdminDashboardState extends State<AdminDashboard> {
         ],
       ),
     );
-  }
-
-  Future<bool> _showConfirmationDialog(
-      BuildContext context, String title, String content) async {
-    return await showDialog<bool>(
-          context: context,
-          builder: (context) => AlertDialog(
-            backgroundColor: const Color(0xFF212E83),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            title: Text(
-              title,
-              style:
-                  const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-            ),
-            content: Text(
-              content,
-              style: const TextStyle(color: Colors.white70),
-            ),
-            actions: [
-              TextButton(
-                child:
-                    const Text('Cancel', style: TextStyle(color: Colors.white70)),
-                onPressed: () => Navigator.of(context).pop(false),
-              ),
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.green.shade700,
-                  foregroundColor: Colors.white,
-                ),
-                child: const Text('Confirm'),
-                onPressed: () => Navigator.of(context).pop(true),
-              ),
-            ],
-          ),
-        ) ??
-        false;
   }
 }
 
