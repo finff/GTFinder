@@ -15,6 +15,7 @@ class TrainerModel {
   final double? latitude;
   final double? longitude;
   final String? address;
+  final String? profileImage;
   final double? distance; // Calculated distance from user
 
   TrainerModel({
@@ -32,6 +33,7 @@ class TrainerModel {
     this.latitude,
     this.longitude,
     this.address,
+    this.profileImage,
     this.distance,
   });
 
@@ -51,6 +53,7 @@ class TrainerModel {
       latitude: map['latitude']?.toDouble(),
       longitude: map['longitude']?.toDouble(),
       address: map['address'],
+      profileImage: map['profileImage'],
       distance: map['distance']?.toDouble(),
     );
   }
@@ -70,6 +73,7 @@ class TrainerModel {
       'latitude': latitude,
       'longitude': longitude,
       'address': address,
+      'profileImage': profileImage,
     };
   }
 
@@ -99,6 +103,7 @@ class TrainerModel {
       latitude: latitude,
       longitude: longitude,
       address: address,
+      profileImage: profileImage,
       distance: distance ?? this.distance,
     );
   }

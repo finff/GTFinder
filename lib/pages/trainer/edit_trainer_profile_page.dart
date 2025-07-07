@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:geolocator/geolocator.dart';
 
 class EditTrainerProfilePage extends StatefulWidget {
   final Map<String, dynamic> userData;
@@ -26,8 +25,6 @@ class _EditTrainerProfilePageState extends State<EditTrainerProfilePage> {
   late TextEditingController _sessionFeeController;
   late TextEditingController _addressController;
   String _selectedGender = 'Not specified';
-  double? _latitude;
-  double? _longitude;
 
   @override
   void initState() {
@@ -40,8 +37,6 @@ class _EditTrainerProfilePageState extends State<EditTrainerProfilePage> {
     _sessionFeeController = TextEditingController(text: widget.userData['sessionFee']?.toString() ?? '50.0');
     _addressController = TextEditingController(text: widget.userData['address'] ?? '');
     _selectedGender = widget.userData['gender'] ?? 'Not specified';
-    _latitude = widget.userData['latitude']?.toDouble();
-    _longitude = widget.userData['longitude']?.toDouble();
     if (!['Male', 'Female', 'Other', 'Not specified'].contains(_selectedGender)) {
       _selectedGender = 'Not specified';
     }
@@ -79,8 +74,6 @@ class _EditTrainerProfilePageState extends State<EditTrainerProfilePage> {
         'experience': int.tryParse(_experienceController.text.trim()) ?? 0,
         'sessionFee': double.tryParse(_sessionFeeController.text.trim()) ?? 50.0,
         'address': _addressController.text.trim(),
-        'latitude': _latitude,
-        'longitude': _longitude,
         'updatedAt': FieldValue.serverTimestamp(),
       };
 
@@ -263,7 +256,48 @@ class _EditTrainerProfilePageState extends State<EditTrainerProfilePage> {
                           },
                         ),
                         const SizedBox(height: 16),
-                        _buildLocationButton(),
+                        // Location tracking info
+                        Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.green.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.green.withOpacity(0.3)),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.my_location,
+                                color: Colors.green,
+                                size: 20,
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Automatic Location Tracking',
+                                      style: TextStyle(
+                                        color: Colors.green,
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      'Your location is automatically updated when you move. No manual updates needed.',
+                                      style: TextStyle(
+                                        color: Colors.white.withOpacity(0.7),
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -380,99 +414,5 @@ class _EditTrainerProfilePageState extends State<EditTrainerProfilePage> {
     );
   }
 
-  Widget _buildLocationButton() {
-    return Container(
-      width: double.infinity,
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: ElevatedButton.icon(
-        onPressed: _getCurrentLocation,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-        ),
-        icon: const Icon(
-          Icons.my_location,
-          color: Colors.white,
-          size: 24,
-        ),
-        label: Text(
-          _latitude != null && _longitude != null
-              ? 'Location Set (${_latitude!.toStringAsFixed(4)}, ${_longitude!.toStringAsFixed(4)})'
-              : 'Get Current Location',
-          style: const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-            color: Colors.white,
-          ),
-        ),
-      ),
-    );
-  }
 
-  Future<void> _getCurrentLocation() async {
-    try {
-      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-      if (!serviceEnabled) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Location services are disabled. Please enable them.')),
-        );
-        return;
-      }
-
-      LocationPermission permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
-        if (permission == LocationPermission.denied) {
-          if (!mounted) return;
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Location permissions are denied.')),
-          );
-          return;
-        }
-      }
-
-      if (permission == LocationPermission.deniedForever) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Location permissions are permanently denied. Please enable them in settings.'),
-          ),
-        );
-        return;
-      }
-
-      Position position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
-      );
-
-      setState(() {
-        _latitude = position.latitude;
-        _longitude = position.longitude;
-      });
-
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Location updated: ${position.latitude.toStringAsFixed(4)}, ${position.longitude.toStringAsFixed(4)}'),
-          backgroundColor: Colors.green,
-        ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error getting location: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
-  }
 } 

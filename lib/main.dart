@@ -7,6 +7,7 @@ import 'pages/trainer/trainer_landing_page.dart';
 import 'pages/admin/admin_dashboard.dart';
 import 'services/auth_service.dart';
 import 'services/admin_service.dart';
+import 'services/trainer_location_service.dart';
 import 'package:timezone/data/latest.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -27,6 +28,24 @@ void main() async {
     print('[main.dart] Starting admin initialization...');
     await AuthService().initializeAdminUser();
     print('[main.dart] Admin initialization complete.');
+
+    // Initialize location tracking for trainers if logged in
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      try {
+        final trainerDoc = await FirebaseFirestore.instance
+            .collection('trainer')
+            .doc(user.uid)
+            .get();
+        if (trainerDoc.exists) {
+          print('[main.dart] Trainer detected, initializing location tracking...');
+          await TrainerLocationService.startLocationTracking();
+          print('[main.dart] Location tracking initialized for trainer.');
+        }
+      } catch (e) {
+        print('[main.dart] Error initializing location tracking: $e');
+      }
+    }
 
     runApp(const MyApp());
     print('[main.dart] runApp() called.');

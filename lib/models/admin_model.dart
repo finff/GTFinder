@@ -7,6 +7,7 @@ class AdminModel {
   final DateTime createdAt;
   final List<String> permissions;
   final bool isActive;
+  final String? profileImage;
 
   AdminModel({
     required this.id,
@@ -15,6 +16,7 @@ class AdminModel {
     required this.createdAt,
     required this.permissions,
     required this.isActive,
+    this.profileImage,
   });
 
   factory AdminModel.fromMap(Map<String, dynamic> map, String id) {
@@ -25,6 +27,7 @@ class AdminModel {
       createdAt: (map['createdAt'] as Timestamp).toDate(),
       permissions: List<String>.from(map['permissions'] ?? []),
       isActive: map['isActive'] ?? false,
+      profileImage: map['profileImage'],
     );
   }
 
@@ -35,6 +38,7 @@ class AdminModel {
       'createdAt': Timestamp.fromDate(createdAt),
       'permissions': permissions,
       'isActive': isActive,
+      'profileImage': profileImage,
     };
   }
 
@@ -45,6 +49,7 @@ class AdminModel {
     DateTime? createdAt,
     List<String>? permissions,
     bool? isActive,
+    String? profileImage,
   }) {
     return AdminModel(
       id: id ?? this.id,
@@ -53,6 +58,7 @@ class AdminModel {
       createdAt: createdAt ?? this.createdAt,
       permissions: permissions ?? this.permissions,
       isActive: isActive ?? this.isActive,
+      profileImage: profileImage ?? this.profileImage,
     );
   }
 

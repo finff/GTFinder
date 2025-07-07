@@ -5,6 +5,7 @@ import '../../models/admin_model.dart';
 import '../../models/user_model.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../login_page.dart';
+import '../../widgets/profile_image_widget.dart';
 
 class AdminDashboard extends StatefulWidget {
   const AdminDashboard({super.key});
@@ -82,6 +83,15 @@ class _AdminDashboardState extends State<AdminDashboard> {
     }
   }
 
+  Future<void> _refreshAdminProfile() async {
+    final admin = await _adminService.getCurrentAdmin();
+    if (mounted && admin != null) {
+      setState(() {
+        _currentAdmin = admin;
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -108,17 +118,9 @@ class _AdminDashboardState extends State<AdminDashboard> {
                       padding: const EdgeInsets.all(16.0),
                       child: Row(
                         children: [
-                          Container(
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            child: const Icon(
-                              Icons.admin_panel_settings,
-                              color: Colors.white,
-                              size: 24,
-                            ),
+                          ProfileImageDisplay(
+                            imageUrl: _currentAdmin?.profileImage,
+                            size: 48,
                           ),
                           const SizedBox(width: 16),
                           Expanded(
@@ -170,11 +172,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                           if (_currentAdmin != null)
                             AdminSettingsPage(
                               admin: _currentAdmin!,
-                              onProfileUpdated: (newName) {
-                                setState(() {
-                                  _currentAdmin = _currentAdmin?.copyWith(name: newName);
-                                });
-                              },
+                              onProfileUpdated: _refreshAdminProfile,
                             )
                           else
                             Center(
@@ -325,31 +323,9 @@ class _AdminDashboardState extends State<AdminDashboard> {
               Icons.sports,
               Colors.green.shade300,
             ),
-            _buildStatCard(
-              'Active Bookings',
-              _analytics['activeBookings']?.toString() ?? '0',
-              Icons.event_available,
-              Colors.orange.shade300,
-            ),
-            _buildStatCard(
-              'Total Revenue',
-              'RM ${_analytics['revenue']?.toStringAsFixed(2) ?? '0.00'}',
-              Icons.attach_money,
-              Colors.red.shade300,
-            ),
           ],
         ),
         const SizedBox(height: 24),
-        const Text(
-          'Active Bookings',
-          style: TextStyle(
-            fontSize: 22,
-            fontWeight: FontWeight.bold,
-            color: Colors.white,
-          ),
-        ),
-        const SizedBox(height: 12),
-        _buildActiveBookingsList(),
       ],
     );
   }
@@ -448,13 +424,19 @@ class _AdminDashboardState extends State<AdminDashboard> {
               ),
               child: ListTile(
                 contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                leading: CircleAvatar(
-                  backgroundColor: Colors.blue.shade300,
-                  child: Text(
-                    user.name[0].toUpperCase(),
-                    style: const TextStyle(color: Colors.white),
-                  ),
-                ),
+                leading: user.profileImage != null && user.profileImage!.isNotEmpty
+                    ? ProfileImageDisplay(
+                        imageUrl: user.profileImage,
+                        size: 40,
+                        cacheKey: user.profileImage != null ? '${user.profileImage}_${user.id}' : null,
+                      )
+                    : CircleAvatar(
+                        backgroundColor: Colors.blue.shade300,
+                        child: Text(
+                          user.name[0].toUpperCase(),
+                          style: const TextStyle(color: Colors.white),
+                        ),
+                      ),
                 title: Text(
                   user.name,
                   style: const TextStyle(
@@ -530,13 +512,18 @@ class _AdminDashboardState extends State<AdminDashboard> {
                     ),
                     child: ListTile(
                       contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                      leading: CircleAvatar(
-                        backgroundColor: Colors.green.shade300,
-                        child: Text(
-                          trainer.name[0].toUpperCase(),
-                          style: const TextStyle(color: Colors.white),
-                        ),
-                      ),
+                      leading: trainer.profileImage != null && trainer.profileImage!.isNotEmpty
+                          ? ProfileImageDisplay(
+                              imageUrl: trainer.profileImage,
+                              size: 40,
+                            )
+                          : CircleAvatar(
+                              backgroundColor: Colors.green.shade300,
+                              child: Text(
+                                trainer.name[0].toUpperCase(),
+                                style: const TextStyle(color: Colors.white),
+                              ),
+                            ),
                       title: Text(
                         trainer.name,
                         style: const TextStyle(
@@ -1614,7 +1601,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
 
 class AdminSettingsPage extends StatefulWidget {
   final AdminModel admin;
-  final Function(String) onProfileUpdated;
+  final Future<void> Function() onProfileUpdated;
 
   const AdminSettingsPage({
     super.key,
@@ -1630,11 +1617,14 @@ class _AdminSettingsPageState extends State<AdminSettingsPage> {
   late final TextEditingController _nameController;
   final AdminService _adminService = AdminService();
   bool _isSaving = false;
+  String? _profileImageUrl;
+  String _imageCacheKey = '';
 
   @override
   void initState() {
     super.initState();
     _nameController = TextEditingController(text: widget.admin.name);
+    _profileImageUrl = widget.admin.profileImage;
   }
 
   @override
@@ -1655,9 +1645,7 @@ class _AdminSettingsPageState extends State<AdminSettingsPage> {
     try {
       final newName = _nameController.text.trim();
       await _adminService.updateAdminProfile(widget.admin.id, newName);
-      
-      widget.onProfileUpdated(newName);
-
+      await widget.onProfileUpdated();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -1705,6 +1693,7 @@ class _AdminSettingsPageState extends State<AdminSettingsPage> {
   }
 
   Widget _buildProfileCard() {
+    final adminId = FirebaseAuth.instance.currentUser?.uid;
     return Card(
       color: Colors.white.withOpacity(0.1),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -1712,6 +1701,28 @@ class _AdminSettingsPageState extends State<AdminSettingsPage> {
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
+            ProfileImageWidget(
+              imageUrl: _profileImageUrl != null && _imageCacheKey.isNotEmpty
+                  ? '$_profileImageUrl?t=$_imageCacheKey'
+                  : _profileImageUrl,
+              userType: 'admin',
+              isEditable: true,
+              size: 100,
+              cacheKey: _profileImageUrl != null && adminId != null
+                  ? '$_profileImageUrl${adminId}'
+                  : _imageCacheKey,
+              onImageChanged: (url) async {
+                if (adminId != null) {
+                  final doc = await FirebaseFirestore.instance.collection('admins').doc(adminId).get();
+                  setState(() {
+                    _profileImageUrl = doc.data()?['profileImage'];
+                    _imageCacheKey = DateTime.now().millisecondsSinceEpoch.toString();
+                  });
+                  await widget.onProfileUpdated();
+                }
+              },
+            ),
+            const SizedBox(height: 20),
             TextField(
               controller: _nameController,
               style: const TextStyle(color: Colors.white),

@@ -12,6 +12,8 @@ import '../../widgets/calories_burn_box.dart';
 import '../../widgets/notification_badge.dart';
 import 'calorie_sharing_page.dart';
 import '../shared/notification_page.dart';
+import '../../services/trainer_location_service.dart';
+import '../../widgets/profile_image_widget.dart';
 
 class TrainerLandingPage extends StatefulWidget {
   const TrainerLandingPage({super.key});
@@ -24,11 +26,20 @@ class _TrainerLandingPageState extends State<TrainerLandingPage> {
   final String _trainerName = '';
   final bool _isLoading = true;
   late Stream<DocumentSnapshot> _trainerStream;
+  bool _locationTrackingStarted = false;
+  String? _profileImageUrl;
 
   @override
   void initState() {
     super.initState();
     _setupTrainerStream();
+    _initializeLocationTracking();
+  }
+
+  @override
+  void dispose() {
+    // Don't stop location tracking on dispose as we want it to continue in background
+    super.dispose();
   }
 
   void _setupTrainerStream() {
@@ -38,6 +49,78 @@ class _TrainerLandingPageState extends State<TrainerLandingPage> {
           .collection('trainer')
           .doc(user.uid)
           .snapshots();
+    }
+  }
+
+  Future<void> _initializeLocationTracking() async {
+    try {
+      // Check location tracking status
+      final status = await TrainerLocationService.getLocationTrackingStatus();
+      
+      if (status['isLoggedIn'] && status['isTrainer']) {
+        if (!status['locationServicesEnabled']) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Please enable location services for automatic location updates'),
+                backgroundColor: Colors.orange,
+                duration: Duration(seconds: 3),
+              ),
+            );
+          }
+          return;
+        }
+        
+        if (!status['locationPermissionGranted']) {
+          // Request location permission and start tracking
+          final success = await TrainerLocationService.requestLocationPermissionAndStartTracking();
+          if (success) {
+            setState(() {
+              _locationTrackingStarted = true;
+            });
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Location tracking started automatically'),
+                  backgroundColor: Colors.green,
+                  duration: Duration(seconds: 2),
+                ),
+              );
+            }
+          } else {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Location permission required for automatic updates'),
+                  backgroundColor: Colors.orange,
+                  duration: Duration(seconds: 3),
+                ),
+              );
+            }
+          }
+        } else if (!status['isTrackingActive']) {
+          // Start tracking if permissions are already granted
+          await TrainerLocationService.startLocationTracking();
+          setState(() {
+            _locationTrackingStarted = true;
+          });
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Location tracking started automatically'),
+                backgroundColor: Colors.green,
+                duration: Duration(seconds: 2),
+              ),
+            );
+          }
+        } else {
+          setState(() {
+            _locationTrackingStarted = true;
+          });
+        }
+      }
+    } catch (e) {
+      print('Error initializing location tracking: $e');
     }
   }
 
@@ -136,6 +219,7 @@ class _TrainerLandingPageState extends State<TrainerLandingPage> {
 
               final data = snapshot.data?.data() as Map<String, dynamic>?;
               final name = data?['name'] as String? ?? 'Trainer';
+              _profileImageUrl = data?['profileImage'];
 
               return SingleChildScrollView(
                 padding: const EdgeInsets.all(24),
@@ -156,50 +240,77 @@ class _TrainerLandingPageState extends State<TrainerLandingPage> {
                           ),
                         ],
                       ),
-                      child: Row(
+                      child: Column(
                         children: [
-                          Container(
-                            padding: const EdgeInsets.all(16),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: const Icon(
-                              Icons.fitness_center,
-                              size: 32,
-                              color: Colors.white,
-                            ),
-                          ),
-                          const SizedBox(width: 20),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Welcome back,',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    color: Colors.blue.shade100,
-                                  ),
+                          Row(
+                            children: [
+                              ProfileImageDisplay(
+                                imageUrl: _profileImageUrl,
+                                size: 64,
+                              ),
+                              const SizedBox(width: 20),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Welcome back,',
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        color: Colors.blue.shade100,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      name,
+                                      style: const TextStyle(
+                                        fontSize: 24,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  name,
-                                  style: const TextStyle(
-                                    fontSize: 24,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.white,
+                              ),
+                              IconButton(
+                                onPressed: _signOut,
+                                icon: const Icon(Icons.logout_rounded),
+                                color: Colors.red.shade300,
+                                iconSize: 28,
+                              ),
+                            ],
+                          ),
+                          // Location tracking status
+                          if (_locationTrackingStarted) ...[
+                            const SizedBox(height: 16),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              decoration: BoxDecoration(
+                                color: Colors.green.withOpacity(0.2),
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(color: Colors.green.withOpacity(0.3)),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.my_location,
+                                    color: Colors.green,
+                                    size: 16,
                                   ),
-                                ),
-                              ],
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    'Location tracking active',
+                                    style: TextStyle(
+                                      color: Colors.green,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
-                          ),
-                          IconButton(
-                            onPressed: _signOut,
-                            icon: const Icon(Icons.logout_rounded),
-                            color: Colors.red.shade300,
-                            iconSize: 28,
-                          ),
+                          ],
                         ],
                       ),
                     ),

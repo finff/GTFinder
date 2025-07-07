@@ -3,6 +3,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'edit_trainer_profile_page.dart';
 import '../../widgets/change_password_dialog.dart';
+import '../../services/trainer_location_service.dart';
+import '../../widgets/profile_image_widget.dart';
 
 class TrainerProfilePage extends StatefulWidget {
   const TrainerProfilePage({super.key});
@@ -14,11 +16,15 @@ class TrainerProfilePage extends StatefulWidget {
 class _TrainerProfilePageState extends State<TrainerProfilePage> {
   bool _isLoading = true;
   Map<String, dynamic>? _userData;
+  bool _locationTrackingActive = false;
+  bool _isRefreshingLocation = false;
+  String _imageCacheKey = '';
 
   @override
   void initState() {
     super.initState();
     _loadUserData();
+    _checkLocationTrackingStatus();
   }
 
   Future<void> _loadUserData() async {
@@ -73,6 +79,67 @@ class _TrainerProfilePageState extends State<TrainerProfilePage> {
     }
   }
 
+  Future<void> _checkLocationTrackingStatus() async {
+    try {
+      final status = await TrainerLocationService.getLocationTrackingStatus();
+      setState(() {
+        _locationTrackingActive = status['isTrackingActive'] ?? false;
+      });
+    } catch (e) {
+      print('Error checking location tracking status: $e');
+    }
+  }
+
+  Future<void> _refreshLocation() async {
+    setState(() {
+      _isRefreshingLocation = true;
+    });
+
+    try {
+      final success = await TrainerLocationService.forceUpdateLocation();
+      if (success) {
+        await _loadUserData(); // Refresh user data to get updated location
+        await _checkLocationTrackingStatus(); // Update tracking status
+        setState(() {
+          _isRefreshingLocation = false;
+        });
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Location updated successfully'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      } else {
+        setState(() {
+          _isRefreshingLocation = false;
+        });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Failed to update location'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      setState(() {
+        _isRefreshingLocation = false;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error updating location: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
   Future<void> _navigateToEditProfile() async {
     if (_userData == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -106,6 +173,8 @@ class _TrainerProfilePageState extends State<TrainerProfilePage> {
         ),
       );
     }
+
+    final userId = FirebaseAuth.instance.currentUser?.uid;
 
     return Scaffold(
       backgroundColor: const Color(0xFF1A2468),
@@ -158,17 +227,25 @@ class _TrainerProfilePageState extends State<TrainerProfilePage> {
                   ),
                   child: Column(
                     children: [
-                      Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.1),
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(
-                          Icons.person_outline,
-                          size: 48,
-                          color: Colors.white,
-                        ),
+                      ProfileImageWidget(
+                        imageUrl: _userData?['profileImage'] != null && _imageCacheKey.isNotEmpty
+                            ? '${_userData?['profileImage']}?t=$_imageCacheKey'
+                            : _userData?['profileImage'],
+                        userType: 'trainer',
+                        isEditable: true,
+                        size: 100,
+                        cacheKey: _userData?['profileImage'] != null && userId != null
+                            ? '${_userData?['profileImage']}_$userId'
+                            : _imageCacheKey,
+                        onImageChanged: (url) async {
+                          if (userId != null) {
+                            final doc = await FirebaseFirestore.instance.collection('trainer').doc(userId).get();
+                            setState(() {
+                              _userData = doc.data();
+                              _imageCacheKey = DateTime.now().millisecondsSinceEpoch.toString();
+                            });
+                          }
+                        },
                       ),
                       const SizedBox(height: 16),
                       Text(
@@ -255,6 +332,84 @@ class _TrainerProfilePageState extends State<TrainerProfilePage> {
                           '${_userData!['latitude'].toStringAsFixed(4)}, ${_userData!['longitude'].toStringAsFixed(4)}',
                         ),
                       ],
+                      const SizedBox(height: 16),
+                      // Location tracking status
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: _locationTrackingActive 
+                              ? Colors.green.withOpacity(0.2)
+                              : Colors.orange.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: _locationTrackingActive 
+                                ? Colors.green.withOpacity(0.3)
+                                : Colors.orange.withOpacity(0.3),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              _locationTrackingActive 
+                                  ? Icons.my_location
+                                  : Icons.location_off,
+                              color: _locationTrackingActive 
+                                  ? Colors.green
+                                  : Colors.orange,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    _locationTrackingActive 
+                                        ? 'Location Tracking Active'
+                                        : 'Location Tracking Inactive',
+                                    style: TextStyle(
+                                      color: _locationTrackingActive 
+                                          ? Colors.green
+                                          : Colors.orange,
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    _locationTrackingActive 
+                                        ? 'Your location is being updated automatically'
+                                        : 'Enable location tracking for automatic updates',
+                                    style: TextStyle(
+                                      color: Colors.white.withOpacity(0.7),
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            if (!_locationTrackingActive)
+                              IconButton(
+                                onPressed: _isRefreshingLocation ? null : _refreshLocation,
+                                icon: _isRefreshingLocation
+                                    ? const SizedBox(
+                                        width: 16,
+                                        height: 16,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          color: Colors.white,
+                                        ),
+                                      )
+                                    : const Icon(
+                                        Icons.refresh,
+                                        color: Colors.white,
+                                        size: 20,
+                                      ),
+                                tooltip: 'Start Location Tracking',
+                              ),
+                          ],
+                        ),
+                      ),
                     ],
                   ),
                 ),

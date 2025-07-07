@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
+import '../../widgets/profile_image_widget.dart';
 
 class CalorieSharingPage extends StatelessWidget {
   const CalorieSharingPage({super.key});
@@ -216,17 +217,33 @@ class _TrainerCalorieCardState extends State<TrainerCalorieCard> {
               padding: const EdgeInsets.all(20),
               child: Row(
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.1),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.person_outline,
-                      color: Colors.white,
-                      size: 24,
-                    ),
+                  FutureBuilder<DocumentSnapshot>(
+                    future: FirebaseFirestore.instance
+                        .collection('trainer')
+                        .doc(widget.trainerId)
+                        .get(),
+                    builder: (context, trainerSnapshot) {
+                      if (trainerSnapshot.hasData && trainerSnapshot.data!.exists) {
+                        final trainerData = trainerSnapshot.data!.data() as Map<String, dynamic>?;
+                        return ProfileImageDisplay(
+                          imageUrl: trainerData?['profileImage'],
+                          size: 48,
+                        );
+                      }
+                      return Container(
+                        width: 48,
+                        height: 48,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.1),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.person_outline,
+                          color: Colors.white,
+                          size: 24,
+                        ),
+                      );
+                    },
                   ),
                   const SizedBox(width: 16),
                   Expanded(

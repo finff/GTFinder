@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 import '../../services/notification_service.dart';
 import '../../services/trainer_service.dart';
 import '../../models/trainer_model.dart';
+import '../../widgets/profile_image_widget.dart';
 
 class TrainerFinderPage extends StatefulWidget {
   const TrainerFinderPage({super.key});
@@ -714,17 +715,9 @@ class _TrainerFinderPageState extends State<TrainerFinderPage> {
       ),
       child: ListTile(
         contentPadding: const EdgeInsets.all(16),
-        leading: Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.1),
-            shape: BoxShape.circle,
-          ),
-          child: const Icon(
-            Icons.person_outline,
-            color: Colors.white,
-            size: 24,
-          ),
+        leading: ProfileImageDisplay(
+          imageUrl: trainer?.profileImage,
+          size: 48,
         ),
         title: Text(
           trainerName,

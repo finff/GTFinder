@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'edit_user_profile_page.dart';
 import '../../widgets/change_password_dialog.dart';
+import '../../widgets/profile_image_widget.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -14,6 +15,7 @@ class ProfilePage extends StatefulWidget {
 class _ProfilePageState extends State<ProfilePage> {
   bool _isLoading = true;
   Map<String, dynamic>? _userData;
+  String _imageCacheKey = '';
 
   @override
   void initState() {
@@ -107,17 +109,25 @@ class _ProfilePageState extends State<ProfilePage> {
                   ),
                   child: Column(
                     children: [
-                      Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.1),
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(
-                          Icons.person_outline,
-                          size: 48,
-                          color: Colors.white,
-                        ),
+                      ProfileImageWidget(
+                        imageUrl: _userData?['profileImage'] != null && _imageCacheKey.isNotEmpty
+                            ? '${_userData?['profileImage']}?t=$_imageCacheKey'
+                            : _userData?['profileImage'],
+                        userType: 'user',
+                        isEditable: true,
+                        size: 100,
+                        cacheKey: _userData?['profileImage'] != null && FirebaseAuth.instance.currentUser?.uid != null
+                            ? '${_userData?['profileImage']}_${FirebaseAuth.instance.currentUser?.uid}'
+                            : _imageCacheKey,
+                        onImageChanged: (url) async {
+                          if (FirebaseAuth.instance.currentUser?.uid != null) {
+                            final doc = await FirebaseFirestore.instance.collection('users').doc(FirebaseAuth.instance.currentUser?.uid).get();
+                            setState(() {
+                              _userData = doc.data();
+                              _imageCacheKey = DateTime.now().millisecondsSinceEpoch.toString();
+                            });
+                          }
+                        },
                       ),
                       const SizedBox(height: 16),
                       Text(

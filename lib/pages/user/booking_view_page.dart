@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'payment_page.dart';
+import '../../widgets/profile_image_widget.dart';
 import 'package:intl/intl.dart';
 
 class BookingViewPage extends StatelessWidget {
@@ -134,6 +135,34 @@ class BookingViewPage extends StatelessWidget {
                           ],
                         ),
                         child: ExpansionTile(
+                          leading: FutureBuilder<DocumentSnapshot>(
+                            future: FirebaseFirestore.instance
+                                .collection('trainer')
+                                .doc(trainerBookings.first['trainerId'])
+                                .get(),
+                            builder: (context, trainerSnapshot) {
+                              if (trainerSnapshot.hasData && trainerSnapshot.data!.exists) {
+                                final trainerData = trainerSnapshot.data!.data() as Map<String, dynamic>?;
+                                return ProfileImageDisplay(
+                                  imageUrl: trainerData?['profileImage'],
+                                  size: 40,
+                                );
+                              }
+                              return Container(
+                                width: 40,
+                                height: 40,
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.1),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(
+                                  Icons.person_outline,
+                                  color: Colors.white,
+                                  size: 20,
+                                ),
+                              );
+                            },
+                          ),
                           title: Text(
                             trainerName,
                             style: const TextStyle(

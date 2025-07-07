@@ -12,6 +12,7 @@ import '../../widgets/notification_badge.dart';
 import 'calorie_sharing_page.dart';
 import '../../services/notification_service.dart';
 import '../shared/notification_page.dart';
+import '../../widgets/profile_image_widget.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 class UserLandingPage extends StatefulWidget {
@@ -23,6 +24,7 @@ class UserLandingPage extends StatefulWidget {
 
 class _UserLandingPageState extends State<UserLandingPage> {
   String _userName = '';
+  String? _profileImageUrl;
   bool _isLoading = true;
 
   @override
@@ -44,6 +46,7 @@ class _UserLandingPageState extends State<UserLandingPage> {
         if (userDoc.exists) {
           setState(() {
             _userName = userDoc.data()?['name'] ?? 'User';
+            _profileImageUrl = userDoc.data()?['profileImage'];
             _isLoading = false;
           });
         }
@@ -116,17 +119,9 @@ class _UserLandingPageState extends State<UserLandingPage> {
                         ),
                         child: Row(
                           children: [
-                            Container(
-                              padding: const EdgeInsets.all(16),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: const Icon(
-                                Icons.person_outline,
-                                size: 32,
-                                color: Colors.white,
-                              ),
+                            ProfileImageDisplay(
+                              imageUrl: _profileImageUrl,
+                              size: 64,
                             ),
                             const SizedBox(width: 20),
                             Expanded(
