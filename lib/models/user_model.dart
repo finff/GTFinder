@@ -28,7 +28,9 @@ class UserModel {
       name: map['name'] ?? '',
       isActive: map['isActive'] ?? true,
       isVerified: map['isVerified'] ?? false,
-      createdAt: (map['createdAt'] as Timestamp).toDate(),
+      createdAt: map['createdAt'] != null
+          ? (map['createdAt'] as Timestamp).toDate()
+          : DateTime.now(),
       profileImage: map['profileImage'],
       metadata: map['metadata'],
     );

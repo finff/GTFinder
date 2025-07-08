@@ -48,8 +48,12 @@ class TrainerModel {
       specialization: map['specialization'] ?? '',
       experience: map['experience'] ?? 0,
       sessionFee: (map['sessionFee'] ?? 50.0).toDouble(),
-      createdAt: (map['createdAt'] as Timestamp).toDate(),
-      updatedAt: map['updatedAt'] != null ? (map['updatedAt'] as Timestamp).toDate() : null,
+      createdAt: map['createdAt'] != null
+          ? (map['createdAt'] as Timestamp).toDate()
+          : DateTime.now(),
+      updatedAt: map['updatedAt'] != null
+          ? (map['updatedAt'] as Timestamp).toDate()
+          : null,
       latitude: map['latitude']?.toDouble(),
       longitude: map['longitude']?.toDouble(),
       address: map['address'],

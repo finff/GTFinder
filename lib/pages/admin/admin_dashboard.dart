@@ -410,6 +410,14 @@ class _AdminDashboardState extends State<AdminDashboard> {
         }
 
         final users = snapshot.data ?? [];
+        if (users.isEmpty) {
+          return const Center(
+            child: Text(
+              'No users found',
+              style: TextStyle(color: Colors.white70, fontSize: 16),
+            ),
+          );
+        }
 
         return ListView.builder(
           padding: const EdgeInsets.all(16),
@@ -433,7 +441,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                     : CircleAvatar(
                         backgroundColor: Colors.blue.shade300,
                         child: Text(
-                          user.name[0].toUpperCase(),
+                          user.name.isNotEmpty ? user.name[0].toUpperCase() : '?',
                           style: const TextStyle(color: Colors.white),
                         ),
                       ),
@@ -492,8 +500,14 @@ class _AdminDashboardState extends State<AdminDashboard> {
         }
 
         final trainers = snapshot.data ?? [];
-        print(
-            '[ADMIN_DASHBOARD] Building trainer list with ${trainers.length} trainers.'); // Debug log
+        if (trainers.isEmpty) {
+          return const Center(
+            child: Text(
+              'No trainers found',
+              style: TextStyle(color: Colors.white70, fontSize: 16),
+            ),
+          );
+        }
 
         return Column(
           children: [
@@ -520,7 +534,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                           : CircleAvatar(
                               backgroundColor: Colors.green.shade300,
                               child: Text(
-                                trainer.name[0].toUpperCase(),
+                                trainer.name.isNotEmpty ? trainer.name[0].toUpperCase() : '?',
                                 style: const TextStyle(color: Colors.white),
                               ),
                             ),

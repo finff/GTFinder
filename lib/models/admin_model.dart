@@ -24,7 +24,9 @@ class AdminModel {
       id: id,
       email: map['email'] ?? '',
       name: map['name'] ?? '',
-      createdAt: (map['createdAt'] as Timestamp).toDate(),
+      createdAt: map['createdAt'] != null
+          ? (map['createdAt'] as Timestamp).toDate()
+          : DateTime.now(),
       permissions: List<String>.from(map['permissions'] ?? []),
       isActive: map['isActive'] ?? false,
       profileImage: map['profileImage'],
