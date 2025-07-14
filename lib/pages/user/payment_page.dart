@@ -8,6 +8,7 @@ import 'dart:async';
 import '../user/user_landing_page.dart';
 import 'package:flutter/services.dart';
 import '../../services/notification_service.dart';
+import '../../widgets/profile_image_widget.dart';
 
 class PaymentPage extends StatefulWidget {
   final String bookingId;
@@ -36,11 +37,20 @@ class PaymentPage extends StatefulWidget {
 class _PaymentPageState extends State<PaymentPage> {
   bool _isProcessing = false;
   String? _paymentIntentId;
+  String? _trainerProfileImageUrl;
+  bool _isProfileImageLoading = true;
+
+  // Trainer details fetched from Firestore
+  String? _trainerName;
+  String? _trainerSpecialization;
+  int? _trainerExperience;
+  bool _isTrainerDetailsLoading = true;
 
   @override
   void initState() {
     super.initState();
     _initializeStripe();
+    _fetchTrainerDetails();
   }
 
   Future<void> _initializeStripe() async {
@@ -411,6 +421,32 @@ class _PaymentPageState extends State<PaymentPage> {
     }
   }
 
+  Future<void> _fetchTrainerDetails() async {
+    setState(() {
+      _isTrainerDetailsLoading = true;
+      _isProfileImageLoading = true;
+    });
+    try {
+      final doc = await FirebaseFirestore.instance.collection('trainer').doc(widget.trainerId).get();
+      if (doc.exists) {
+        final data = doc.data();
+        setState(() {
+          _trainerProfileImageUrl = data?['profileImage'] as String?;
+          _trainerName = data?['name'] as String?;
+          _trainerSpecialization = data?['specialization'] as String?;
+          _trainerExperience = (data?['experience'] as num?)?.toInt();
+        });
+      }
+    } catch (e) {
+      // ignore error, fallback to passed-in values
+    } finally {
+      if (mounted) setState(() {
+        _isTrainerDetailsLoading = false;
+        _isProfileImageLoading = false;
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return WillPopScope(
@@ -477,46 +513,66 @@ class _PaymentPageState extends State<PaymentPage> {
                       children: [
                         Row(
                           children: [
-                            Container(
-                              padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.1),
-                                shape: BoxShape.circle,
-                              ),
-                              child: const Icon(
-                                Icons.person_outline,
-                                color: Colors.white,
-                                size: 24,
-                              ),
-                            ),
+                            _isProfileImageLoading
+                              ? Container(
+                                  width: 48,
+                                  height: 48,
+                                  alignment: Alignment.center,
+                                  child: const CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                )
+                              : (_trainerProfileImageUrl != null && _trainerProfileImageUrl!.isNotEmpty)
+                                ? ProfileImageDisplay(
+                                    imageUrl: _trainerProfileImageUrl,
+                                    size: 48,
+                                  )
+                                : Container(
+                                    padding: const EdgeInsets.all(12),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withOpacity(0.1),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: const Icon(
+                                      Icons.person_outline,
+                                      color: Colors.white,
+                                      size: 24,
+                                    ),
+                                  ),
                             const SizedBox(width: 16),
                             Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    widget.trainerName,
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 20,
-                                      fontWeight: FontWeight.bold,
+                              child: _isTrainerDetailsLoading
+                                ? const SizedBox(
+                                    height: 24,
+                                    child: Align(
+                                      alignment: Alignment.centerLeft,
+                                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                                     ),
+                                  )
+                                : Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        _trainerName ?? widget.trainerName,
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 20,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        _trainerSpecialization ?? widget.specialization,
+                                        style: TextStyle(
+                                          color: Colors.white.withOpacity(0.7),
+                                          fontSize: 16,
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    widget.specialization,
-                                    style: TextStyle(
-                                      color: Colors.white.withOpacity(0.7),
-                                      fontSize: 16,
-                                    ),
-                                  ),
-                                ],
-                              ),
                             ),
                           ],
                         ),
                         const SizedBox(height: 24),
-                        _buildInfoRow('Experience', '${widget.experience} years'),
+                        _buildInfoRow('Experience', '${_trainerExperience ?? widget.experience} years'),
                         const SizedBox(height: 12),
                         _buildInfoRow('Schedule', widget.bookingDateTime),
                       ],

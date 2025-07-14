@@ -56,6 +56,14 @@ class _GymFinderPageState extends State<GymFinderPage> {
   Timer? _idleTimer;
   bool _showMap = true;
 
+  // --- FAKE LOCATION STATE ---
+  bool _useFakeLocation = false;
+  final TextEditingController _fakeLatController = TextEditingController();
+  final TextEditingController _fakeLngController = TextEditingController();
+  double? _fakeLat;
+  double? _fakeLng;
+  // --- END FAKE LOCATION STATE ---
+
   @override
   void initState() {
     super.initState();
@@ -66,10 +74,34 @@ class _GymFinderPageState extends State<GymFinderPage> {
   void dispose() {
     _searchController.dispose();
     _idleTimer?.cancel();
+    _fakeLatController.dispose();
+    _fakeLngController.dispose();
     super.dispose();
   }
 
   Future<void> _getCurrentLocation() async {
+    if (_useFakeLocation && _fakeLat != null && _fakeLng != null) {
+      // Use fake location
+      final fakePosition = geo.Position(
+        latitude: _fakeLat!,
+        longitude: _fakeLng!,
+        timestamp: DateTime.now(),
+        accuracy: 1.0,
+        altitude: 0.0,
+        altitudeAccuracy: 1.0,
+        heading: 0.0,
+        headingAccuracy: 1.0,
+        speed: 0.0,
+        speedAccuracy: 1.0,
+        isMocked: true,
+      );
+      setState(() {
+        currentPosition = fakePosition;
+        isLoading = false;
+      });
+      await _loadNearbyGyms(fakePosition);
+      return;
+    }
     try {
       setState(() {
         isLoading = true;
@@ -249,6 +281,7 @@ class _GymFinderPageState extends State<GymFinderPage> {
     if (mapboxMap == null || annotationManager == null) return;
     try {
       await annotationManager!.deleteAll();
+      // Use built-in marker icon
       if (currentPosition != null) {
         final userMarkerOptions = PointAnnotationOptions(
           geometry: Point(
@@ -257,6 +290,7 @@ class _GymFinderPageState extends State<GymFinderPage> {
               currentPosition!.latitude,
             ),
           ),
+          iconImage: 'marker-15',
           iconSize: 2.5,
           textField: 'You are here',
           textOffset: [0.0, 2.0],
@@ -272,6 +306,7 @@ class _GymFinderPageState extends State<GymFinderPage> {
               gym.latitude,
             ),
           ),
+          iconImage: 'marker-15',
           iconSize: 2.0,
           textField: gym.name,
           textOffset: [0.0, 2.0],
@@ -376,6 +411,32 @@ class _GymFinderPageState extends State<GymFinderPage> {
         child: SafeArea(
           child: Column(
             children: [
+              // --- FAKE LOCATION UI ---
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                child: Row(
+                  children: [
+                    Switch(
+                      value: _useFakeLocation,
+                      onChanged: (val) {
+                        setState(() {
+                          _useFakeLocation = val;
+                        });
+                        if (!val) {
+                          _getCurrentLocation();
+                        }
+                      },
+                      activeColor: Theme.of(context).colorScheme.secondary,
+                    ),
+                    const SizedBox(width: 8),
+                    const Text(
+                      'Use Fake Location (tap map to set)',
+                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.w500),
+                    ),
+                  ],
+                ),
+              ),
+              // --- END FAKE LOCATION UI ---
               // Search bar
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -633,7 +694,26 @@ class _GymFinderPageState extends State<GymFinderPage> {
             zoom: 14.0,
           ),
           onMapIdleListener: _onMapIdle,
+          onTapListener: (MapContentGestureContext gestureContext) async {
+            if (_useFakeLocation && gestureContext.point != null) {
+              setState(() {
+                _fakeLat = (gestureContext.point!.coordinates[1] as num?)?.toDouble();
+                _fakeLng = (gestureContext.point!.coordinates[0] as num?)?.toDouble();
+              });
+              await _getCurrentLocation();
+            }
+          },
         ),
+        if (_useFakeLocation && _fakeLat != null && _fakeLng != null)
+          Positioned(
+            top: 0,
+            left: 0,
+            child: Icon(
+              Icons.location_on,
+              color: Colors.red,
+              size: 40,
+            ),
+          ),
         if (selectedGym != null)
           Positioned(
             bottom: 16,
