@@ -43,6 +43,27 @@ app.post('/capture-payment-intent', async (req, res) => {
   }
 });
 
+app.get('/payment-intent-status', async (req, res) => {
+  try {
+    const { paymentIntentId } = req.query;
+    
+    if (!paymentIntentId) {
+      return res.status(400).json({ error: 'Payment Intent ID is required' });
+    }
+
+    const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
+    res.json({ 
+      status: paymentIntent.status,
+      amount: paymentIntent.amount,
+      currency: paymentIntent.currency,
+      created: paymentIntent.created,
+    });
+  } catch (e) {
+    console.error('Error retrieving payment intent status:', e);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.post('/cancel-payment-intent', async (req, res) => {
   try {
     const { paymentIntentId } = req.body;
