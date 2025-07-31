@@ -57,8 +57,6 @@ exports.sendPushNotification = functions.firestore
         try {
             await admin.messaging().send(message);
             console.log('Successfully sent push notification:', notification);
-            
-            // Delete the push notification document after sending
             await snap.ref.delete();
         } catch (error) {
             console.error('Error sending push notification:', error);

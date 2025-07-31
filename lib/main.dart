@@ -11,6 +11,8 @@ import 'services/trainer_location_service.dart';
 import 'package:timezone/data/latest.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'services/exercise_service.dart';
+import 'services/automatic_payment_service.dart';
 
 void main() async {
   print('[main.dart] App starting...');
@@ -46,6 +48,17 @@ void main() async {
         print('[main.dart] Error initializing location tracking: $e');
       }
     }
+
+    // Preload exercise data in background for faster access
+    print('[main.dart] Starting exercise data preload...');
+    ExerciseService().preloadAllExercises().catchError((e) {
+      print('[main.dart] Exercise preload error (non-critical): $e');
+    });
+
+    // Start automatic payment release monitoring
+    print('[main.dart] Starting automatic payment release monitoring...');
+    final automaticPaymentService = AutomaticPaymentService();
+    automaticPaymentService.startMonitoring();
 
     runApp(const MyApp());
     print('[main.dart] runApp() called.');

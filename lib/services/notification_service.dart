@@ -351,10 +351,10 @@ class NotificationService {
     required double amount,
     required String bookingId,
   }) async {
-    await createNotification(
-      userId: trainerId,
-      title: 'Payment Released',
-      body: 'RM ${amount.toStringAsFixed(2)} from $userName has been released to your account.',
+          await createNotification(
+        userId: trainerId,
+        title: 'Payment Released',
+        body: 'RM ${amount.toStringAsFixed(2)} from $userName has been released to your account.',
       type: NotificationType.paymentReleased,
       data: {
         'paymentType': 'released',
@@ -682,6 +682,31 @@ class NotificationService {
       );
     } catch (e) {
       print('Error scheduling local notification: $e');
+    }
+  }
+
+  // Payment Release Notifications
+  Future<void> createPaymentReleasedToTrainerNotification({
+    required String userId,
+    required String trainerName,
+    required double amount,
+    required String bookingId,
+  }) async {
+    try {
+      await createNotification(
+        userId: userId,
+        title: '✅ Payment Processed',
+        body: 'Your payment of RM ${amount.toStringAsFixed(2)} has been released to $trainerName.',
+        type: NotificationType.payment,
+        data: {
+          'amount': amount,
+          'trainerName': trainerName,
+          'bookingId': bookingId,
+          'action': 'payment_released_to_trainer',
+        },
+      );
+    } catch (e) {
+      print('Error creating payment released to trainer notification: $e');
     }
   }
 }

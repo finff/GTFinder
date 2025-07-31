@@ -50,6 +50,8 @@ class _NotificationPageState extends State<NotificationPage> {
         return Icons.pending_actions;
       case NotificationType.paymentReleased:
         return Icons.payment_outlined;
+      case NotificationType.payment:
+        return Icons.payment;
       case NotificationType.refund:
         return Icons.money_off;
       case NotificationType.calorieReminder:
@@ -76,6 +78,8 @@ class _NotificationPageState extends State<NotificationPage> {
       case NotificationType.paymentHeld:
         return Colors.orange;
       case NotificationType.paymentReleased:
+        return Colors.green;
+      case NotificationType.payment:
         return Colors.green;
       case NotificationType.refund:
         return Colors.red;
@@ -257,13 +261,7 @@ class _NotificationPageState extends State<NotificationPage> {
           );
         },
       ),
-      floatingActionButton: widget.isTrainer 
-          ? FloatingActionButton(
-              onPressed: _createTestNotification,
-              backgroundColor: Colors.blue,
-              child: const Icon(Icons.add, color: Colors.white),
-            )
-          : null,
+
     );
   }
 

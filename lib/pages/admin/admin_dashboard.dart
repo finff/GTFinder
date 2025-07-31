@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../services/admin_service.dart';
+import '../../services/automatic_payment_service.dart';
 import '../../models/admin_model.dart';
 import '../../models/user_model.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../login_page.dart';
 import '../../widgets/profile_image_widget.dart';
+
 
 class AdminDashboard extends StatefulWidget {
   const AdminDashboard({super.key});
@@ -642,79 +644,135 @@ class _AdminDashboardState extends State<AdminDashboard> {
           payment['adminStatus'] != 'refunded'
         ).toList();
 
+        // Debug: Print payment statuses
+        print('🔍 Release Payments Debug:');
+        print('   Total payments from stream: ${allPayments.length}');
+        print('   Payments after filtering: ${payments.length}');
+        for (int i = 0; i < allPayments.length; i++) {
+          final payment = allPayments[i];
+          print('   Payment $i: ID=${payment['id']}, Status=${payment['adminStatus']}, Amount=${payment['amount']}');
+        }
+
         if (payments.isEmpty) {
-          return const Center(
-            child: Text(
-              'No payments to release',
-              style: TextStyle(color: Colors.white, fontSize: 16),
-            ),
+          return Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Text(
+                'No payments to release',
+                style: TextStyle(color: Colors.white, fontSize: 16),
+              ),
+              const SizedBox(height: 16),
+              ElevatedButton.icon(
+                onPressed: () {
+                  // Force refresh by rebuilding the widget
+                  setState(() {});
+                },
+                icon: const Icon(Icons.refresh, color: Colors.white),
+                label: const Text('Refresh', style: TextStyle(color: Colors.white)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blue.shade700,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+              ),
+            ],
           );
         }
 
-        return ListView.builder(
-          padding: const EdgeInsets.all(16),
-          itemCount: payments.length,
-          itemBuilder: (context, index) {
-            final payment = payments[index];
-            final amount = payment['amount']?.toDouble() ?? 0.0;
-            final userName = payment['userName'] ?? 'Unknown User';
-            final trainerName = payment['trainerName'] ?? 'Unknown Trainer';
-            final bookingDateTime = payment['formattedDateTime'] ?? 'Unknown Date';
-            final createdAt = payment['createdAt'] as Timestamp?;
+        return Column(
+          children: [
+            // Debug info and refresh button
+            Container(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    '${payments.length} payment(s) pending',
+                    style: const TextStyle(color: Colors.white, fontSize: 14),
+                  ),
+                  ElevatedButton.icon(
+                    onPressed: () => setState(() {}),
+                    icon: const Icon(Icons.refresh, color: Colors.white, size: 16),
+                    label: const Text('Refresh', style: TextStyle(color: Colors.white, fontSize: 12)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blue.shade700,
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: ListView.builder(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                itemCount: payments.length,
+                itemBuilder: (context, index) {
+                  final payment = payments[index];
+                  final amount = payment['amount']?.toDouble() ?? 0.0;
+                  final userName = payment['userName'] ?? 'Unknown User';
+                  final trainerName = payment['trainerName'] ?? 'Unknown Trainer';
+                  final bookingDateTime = payment['formattedDateTime'] ?? 'Unknown Date';
+                  final createdAt = payment['createdAt'] as Timestamp?;
 
-            return Container(
-              margin: const EdgeInsets.only(bottom: 12),
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: ListTile(
-                contentPadding: const EdgeInsets.all(16),
-                title: Text(
-                  'RM ${amount.toStringAsFixed(2)}',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                subtitle: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const SizedBox(height: 8),
-                    Text(
-                      'User: $userName',
-                      style: TextStyle(color: Colors.blue.shade100),
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(16),
                     ),
-                    Text(
-                      'Trainer: $trainerName',
-                      style: TextStyle(color: Colors.blue.shade100),
-                    ),
-                    Text(
-                      'Session: $bookingDateTime',
-                      style: TextStyle(color: Colors.blue.shade100),
-                    ),
-                    if (createdAt != null)
-                      Text(
-                        'Held since: ${_formatDate(createdAt.toDate())}',
-                        style: TextStyle(color: Colors.blue.shade100, fontSize: 12),
+                    child: ListTile(
+                      contentPadding: const EdgeInsets.all(16),
+                      title: Text(
+                        'RM ${amount.toStringAsFixed(2)}',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
-                  ],
-                ),
-                trailing: ElevatedButton(
-                  onPressed: () => _showReleasePaymentDialog(payment),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green.shade700,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
+                      subtitle: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const SizedBox(height: 8),
+                          Text(
+                            'User: $userName',
+                            style: TextStyle(color: Colors.blue.shade100),
+                          ),
+                          Text(
+                            'Trainer: $trainerName',
+                            style: TextStyle(color: Colors.blue.shade100),
+                          ),
+                          Text(
+                            'Session: $bookingDateTime',
+                            style: TextStyle(color: Colors.blue.shade100),
+                          ),
+                          if (createdAt != null)
+                            Text(
+                              'Held since: ${_formatDate(createdAt.toDate())}',
+                              style: TextStyle(color: Colors.blue.shade100, fontSize: 12),
+                            ),
+                        ],
+                      ),
+                      trailing: ElevatedButton(
+                        onPressed: () => _showReleasePaymentDialog(payment),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.green.shade700,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        child: const Text('Release'),
+                      ),
                     ),
-                  ),
-                  child: const Text('Release'),
-                ),
+                  );
+                },
               ),
-            );
-          },
+            ),
+          ],
         );
       },
     );
@@ -990,15 +1048,21 @@ class _AdminDashboardState extends State<AdminDashboard> {
             child: const Text('Release Payment'),
             onPressed: () async {
               try {
-                await _adminService.releasePaymentToTrainer(
-                  payment['id'],
-                  payment['paymentIntentId'],
-                );
+                // Use the automatic payment service for manual release
+                final automaticPaymentService = AutomaticPaymentService();
+                final bookingId = payment['bookingId'] as String?;
+                
+                if (bookingId == null) {
+                  throw Exception('Booking ID not found');
+                }
+                
+                await automaticPaymentService.manuallyReleasePayment(bookingId);
+                
                 if (!mounted) return;
                 Navigator.pop(context);
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content: Text('Payment released to $trainerName'),
+                    content: Text('Payment manually released to $trainerName'),
                     backgroundColor: Colors.green,
                   ),
                 );
@@ -1611,6 +1675,14 @@ class _AdminDashboardState extends State<AdminDashboard> {
       ),
     );
   }
+
+
+
+
+
+
+
+
 }
 
 class AdminSettingsPage extends StatefulWidget {

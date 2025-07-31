@@ -126,21 +126,30 @@ class TrainerService {
         }
         
         // Check trainer's availability for this time slot
+        // Use the same approach as booking schedule page for consistency
+        // Query for bookings on the exact date (local time, no time component)
         final trainerBookingsSnapshot = await _firestore
             .collection('trainer')
             .doc(trainer.id)
             .collection('bookings')
-            .where('bookingDate', isGreaterThanOrEqualTo: Timestamp.fromDate(
-              DateTime(selectedDate.year, selectedDate.month, selectedDate.day).toUtc(),
-            ))
-            .where('bookingDate', isLessThan: Timestamp.fromDate(
-              DateTime(selectedDate.year, selectedDate.month, selectedDate.day).toUtc().add(const Duration(days: 1)),
+            .where('bookingDate', isEqualTo: Timestamp.fromDate(
+              DateTime(selectedDate.year, selectedDate.month, selectedDate.day),
             ))
             .where('timeSlot', isEqualTo: selectedTimeSlot)
             .get();
         
-        // If no bookings found for this time slot, trainer is available
-        if (trainerBookingsSnapshot.docs.isEmpty) {
+        // Check if there are any active bookings (pending or confirmed) for this time slot
+        final hasActiveBooking = trainerBookingsSnapshot.docs.any((doc) {
+          final status = (doc.data()['status'] ?? '').toLowerCase();
+          return status == 'pending' || status == 'confirmed';
+        });
+        
+        // Debug logging
+        print('Trainer ${trainer.name}: Found ${trainerBookingsSnapshot.docs.length} bookings for $selectedTimeSlot on ${selectedDate.toString().split(' ')[0]}');
+        print('Trainer ${trainer.name}: Has active booking: $hasActiveBooking');
+        
+        // If no active bookings found for this time slot, trainer is available
+        if (!hasActiveBooking) {
           availableTrainers.add(trainer);
         }
       }

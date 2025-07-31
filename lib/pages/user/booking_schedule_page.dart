@@ -518,7 +518,7 @@ class _BookingSchedulePageState extends State<BookingSchedulePage> {
         'trainerId': widget.trainerId,
         'trainerName': widget.trainerName,
         'bookingDate': Timestamp.fromDate(
-          DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day).toUtc(),
+          DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day),
         ),
         'timeSlot': _selectedTimeSlot,
         'formattedDateTime':
@@ -611,26 +611,191 @@ class _BookingSchedulePageState extends State<BookingSchedulePage> {
   Future<void> _showCalorieSharingDialog(BuildContext context, String bookingId) async {
     final result = await showDialog<bool>(
       context: context,
+      barrierDismissible: false, // Prevent accidental dismissal
       builder: (context) => AlertDialog(
-        title: const Text('Share Calories?'),
-        content: const Text('Do you want to share your calorie data with this trainer?'),
+        backgroundColor: const Color(0xFF1A2468),
+        title: Row(
+          children: [
+            Icon(
+              Icons.privacy_tip,
+              color: Colors.blue,
+              size: 24,
+            ),
+            const SizedBox(width: 12),
+            const Text(
+              'Calorie Sharing',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Would you like to share your calorie data with this trainer?',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.blue.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.blue.withOpacity(0.3)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.info_outline,
+                        color: Colors.blue,
+                        size: 16,
+                      ),
+                      const SizedBox(width: 8),
+                      const Text(
+                        'Privacy Information:',
+                        style: TextStyle(
+                          color: Colors.blue,
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    '• If you choose "No", your calories will NOT be shared',
+                    style: TextStyle(
+                      color: Colors.white70,
+                      fontSize: 12,
+                    ),
+                  ),
+                  const Text(
+                    '• If you choose "Yes", trainer can see your daily calories',
+                    style: TextStyle(
+                      color: Colors.white70,
+                      fontSize: 12,
+                    ),
+                  ),
+                  const Text(
+                    '• Sharing automatically expires after 24 hours',
+                    style: TextStyle(
+                      color: Colors.white70,
+                      fontSize: 12,
+                    ),
+                  ),
+                  const Text(
+                    '• You can extend sharing later if needed',
+                    style: TextStyle(
+                      color: Colors.white70,
+                      fontSize: 12,
+                    ),
+                  ),
+                  const Text(
+                    '• You can change this setting later in your profile',
+                    style: TextStyle(
+                      color: Colors.white70,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('No'),
+            style: TextButton.styleFrom(
+              backgroundColor: Colors.red.withOpacity(0.1),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+            ),
+            child: const Text(
+              'No, Keep Private',
+              style: TextStyle(
+                color: Colors.red,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ),
-          TextButton(
+          ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Yes'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.green,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+            ),
+            child: const Text(
+              'Yes, Share',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ),
         ],
       ),
     );
 
-    await FirebaseFirestore.instance
-        .collection('bookings')
-        .doc(bookingId)
-        .update({'calorieSharingConfirmed': result == true});
+    // Update the booking with the user's choice
+    try {
+      await FirebaseFirestore.instance
+          .collection('bookings')
+          .doc(bookingId)
+          .update({'calorieSharingConfirmed': result == true});
+      
+      // Also update the user's and trainer's booking copies
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .collection('bookings')
+            .doc(bookingId)
+            .update({'calorieSharingConfirmed': result == true});
+        
+        await FirebaseFirestore.instance
+            .collection('trainer')
+            .doc(widget.trainerId)
+            .collection('bookings')
+            .doc(bookingId)
+            .update({'calorieSharingConfirmed': result == true});
+      }
+      
+      // Show confirmation message
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              result == true 
+                ? '✅ Calorie sharing enabled for this trainer'
+                : '🔒 Calorie sharing disabled - your data remains private',
+            ),
+            backgroundColor: result == true ? Colors.green : Colors.blue,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (e) {
+      print('Error updating calorie sharing preference: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error updating preference: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   List<String> _getAvailableTimeSlots(Set<String> bookedSlots) {

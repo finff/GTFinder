@@ -134,6 +134,12 @@ class _TrainerFinderPageState extends State<TrainerFinderPage> {
         _trainers = trainers;
         _isLoadingTrainers = false;
       });
+      
+      // Debug logging
+      print('Found ${trainers.length} trainers');
+      if (_selectedDate != null && _selectedTimeSlot != null) {
+        print('Filtering by availability: ${_selectedDate.toString().split(' ')[0]} at $_selectedTimeSlot');
+      }
     } catch (e) {
       setState(() {
         _isLoadingTrainers = false;
@@ -152,7 +158,7 @@ class _TrainerFinderPageState extends State<TrainerFinderPage> {
   Future<List<TrainerModel>> _getTrainersWithoutLocation() async {
     // Original method for backward compatibility
     final querySnapshot = await _firestore.collection('trainer').get();
-    return querySnapshot.docs.map((doc) {
+    List<TrainerModel> trainers = querySnapshot.docs.map((doc) {
       final data = doc.data();
       return TrainerModel.fromMap(data, doc.id);
     }).where((trainer) {
@@ -165,6 +171,61 @@ class _TrainerFinderPageState extends State<TrainerFinderPage> {
       final matchesMax = _maxFee == null || trainer.sessionFee <= _maxFee!;
       return matchesQuery && matchesMin && matchesMax;
     }).toList();
+
+    // If date and time slot are selected, check availability
+    if (_selectedDate != null && _selectedTimeSlot != null) {
+      List<TrainerModel> availableTrainers = [];
+      
+      for (final trainer in trainers) {
+        // Check if user already has a booking with this trainer at this time
+        if (_auth.currentUser?.uid != null) {
+          final userBookingSnapshot = await _firestore
+              .collection('bookings')
+              .where('userId', isEqualTo: _auth.currentUser!.uid)
+              .where('trainerId', isEqualTo: trainer.id)
+              .where('timeSlot', isEqualTo: _selectedTimeSlot)
+              .where('status', whereIn: ['pending', 'confirmed'])
+              .get();
+          
+          final userHasBooking = userBookingSnapshot.docs.any((doc) {
+            final bookingDate = (doc['bookingDate'] as Timestamp).toDate();
+            return bookingDate.year == _selectedDate!.year &&
+                   bookingDate.month == _selectedDate!.month &&
+                   bookingDate.day == _selectedDate!.day;
+          });
+          
+          if (userHasBooking) {
+            continue;
+          }
+        }
+        
+        // Check trainer's availability for this time slot
+        final trainerBookingsSnapshot = await _firestore
+            .collection('trainer')
+            .doc(trainer.id)
+            .collection('bookings')
+            .where('bookingDate', isEqualTo: Timestamp.fromDate(
+              DateTime(_selectedDate!.year, _selectedDate!.month, _selectedDate!.day),
+            ))
+            .where('timeSlot', isEqualTo: _selectedTimeSlot)
+            .get();
+        
+        // Check if there are any active bookings (pending or confirmed) for this time slot
+        final hasActiveBooking = trainerBookingsSnapshot.docs.any((doc) {
+          final status = (doc.data()['status'] ?? '').toLowerCase();
+          return status == 'pending' || status == 'confirmed';
+        });
+        
+        // If no active bookings found for this time slot, trainer is available
+        if (!hasActiveBooking) {
+          availableTrainers.add(trainer);
+        }
+      }
+      
+      return availableTrainers;
+    }
+    
+    return trainers;
   }
 
   void _showFeeFilterDialog() {

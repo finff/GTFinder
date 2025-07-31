@@ -252,12 +252,15 @@ class _PaymentsPageState extends State<PaymentsPage> {
 
             Color statusColor;
             String statusText;
-            if (status == 'completed' && escrowStatus == 'released') {
+            if (status == 'released' || (status == 'completed' && escrowStatus == 'released')) {
               statusColor = Colors.green;
               statusText = 'RELEASED';
             } else if (status == 'held') {
               statusColor = Colors.orange;
               statusText = 'HELD';
+            } else if (status == 'completed') {
+              statusColor = Colors.blue;
+              statusText = 'COMPLETED';
             } else {
               statusColor = Colors.grey;
               statusText = 'UNKNOWN';
