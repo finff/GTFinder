@@ -163,8 +163,14 @@ class _GymFinderPageState extends State<GymFinderPage> {
       setState(() {
         isLoading = true;
       });
+      print('🎯 Loading gyms for position: ${position.latitude}, ${position.longitude}');
+      
       final mapboxGyms = await GymService.getNearbyGyms(position);
+      print('📍 GymService.getNearbyGyms returned ${mapboxGyms.length} gyms');
+      
       final foursquareGyms = await GymService.getNearbyGymsFromFoursquare(position);
+      print('🏢 Foursquare returned ${foursquareGyms.length} gyms');
+      
       final allGyms = [...mapboxGyms];
       for (final foursquareGym in foursquareGyms) {
         bool isDuplicate = false;
@@ -207,6 +213,12 @@ class _GymFinderPageState extends State<GymFinderPage> {
           amenities: gym.amenities,
         );
       }).where((gym) => gym.distance <= 35000).toList();
+      
+      print('🎯 Final UI result: ${gymsWithDistance.length} gyms within 35km');
+      for (final gym in gymsWithDistance.take(5)) {
+        print('   📍 ${gym.name} - ${(gym.distance / 1000).toStringAsFixed(1)}km');
+      }
+      
       setState(() {
         nearbyGyms = gymsWithDistance;
         selectedGym = gymsWithDistance.isNotEmpty ? gymsWithDistance.first : null;
@@ -224,25 +236,66 @@ class _GymFinderPageState extends State<GymFinderPage> {
   }
 
   Future<void> _fitMapToGyms(List<GymLocation> gyms) async {
-    if (mapboxMap == null || gyms.isEmpty) return;
+    if (mapboxMap == null || gyms.isEmpty) {
+      print('❌ Cannot fit map: map is null or no gyms provided');
+      return;
+    }
+    
     try {
+      print('📷 Fitting map to ${gyms.length} gyms...');
+      
+      // Calculate bounds
       double minLat = double.infinity;
       double maxLat = -double.infinity;
       double minLng = double.infinity;
       double maxLng = -double.infinity;
+      
+      int validGyms = 0;
       for (final gym in gyms) {
-        minLat = math.min(minLat, gym.latitude);
-        maxLat = math.max(maxLat, gym.latitude);
-        minLng = math.min(minLng, gym.longitude);
-        maxLng = math.max(maxLng, gym.longitude);
+        if (gym.latitude != 0.0 && gym.longitude != 0.0) {
+          minLat = math.min(minLat, gym.latitude);
+          maxLat = math.max(maxLat, gym.latitude);
+          minLng = math.min(minLng, gym.longitude);
+          maxLng = math.max(maxLng, gym.longitude);
+          validGyms++;
+        }
       }
-      final latPadding = (maxLat - minLat) * 0.1;
-      final lngPadding = (maxLng - minLng) * 0.1;
+      
+      if (validGyms == 0) {
+        print('❌ No valid gym coordinates to fit map to');
+        return;
+      }
+      
+      print('📍 Map bounds: lat($minLat, $maxLat), lng($minLng, $maxLng)');
+      
+      // Calculate center and zoom
       final centerLat = (minLat + maxLat) / 2;
       final centerLng = (minLng + maxLng) / 2;
-      final latZoom = math.log(360 / (maxLat - minLat)) / math.ln2;
-      final lngZoom = math.log(360 / (maxLng - minLng)) / math.ln2;
-      final zoom = math.min(latZoom, lngZoom) - 1;
+      
+      // Calculate appropriate zoom level
+      double zoom;
+      if (validGyms == 1) {
+        // Single gym - zoom closer
+        zoom = 14.0;
+      } else {
+        // Multiple gyms - calculate zoom based on spread
+        final latDiff = maxLat - minLat;
+        final lngDiff = maxLng - minLng;
+        final maxDiff = math.max(latDiff, lngDiff);
+        
+        if (maxDiff < 0.01) {
+          zoom = 13.0; // Very close gyms
+        } else if (maxDiff < 0.05) {
+          zoom = 11.0; // Nearby gyms
+        } else if (maxDiff < 0.1) {
+          zoom = 10.0; // City area
+        } else {
+          zoom = 9.0; // Wide area
+        }
+      }
+      
+      print('📷 Setting camera to center: ($centerLat, $centerLng) with zoom: $zoom');
+      
       final cameraOptions = CameraOptions(
         center: Point(
           coordinates: Position(centerLng, centerLat),
@@ -250,78 +303,211 @@ class _GymFinderPageState extends State<GymFinderPage> {
         zoom: zoom,
         padding: MbxEdgeInsets(left: 50, top: 50, right: 50, bottom: 50),
       );
+      
       await mapboxMap!.setCamera(cameraOptions);
-    } catch (e) {}
+      print('✅ Map camera updated successfully');
+      
+    } catch (e, stackTrace) {
+      print('❌ Error fitting map to gyms: $e');
+      print('Stack trace: $stackTrace');
+    }
   }
 
   Future<void> _searchGyms(String query) async {
     if (currentPosition == null) return;
+    
     try {
       setState(() {
         isLoading = true;
       });
-      final gyms = await GymService.searchGyms(query, currentPosition!);
+      
+      print('🔍 Processing search query: "$query"');
+      
+      // Detect if query is for a specific location
+      final isLocationQuery = _isLocationBasedQuery(query);
+      List<GymLocation> gyms;
+      
+      if (isLocationQuery) {
+        print('🌍 Detected location-based query');
+        // Extract location from query
+        final locationQuery = _extractLocationFromQuery(query);
+        gyms = await GymService.searchGymsByLocation(locationQuery, fallbackPosition: currentPosition!);
+      } else {
+        print('🏋️ Detected gym name/type query');
+        gyms = await GymService.searchGyms(query, currentPosition!);
+      }
+      
       setState(() {
         nearbyGyms = gyms;
         selectedGym = gyms.isNotEmpty ? gyms.first : null;
         isLoading = false;
       });
-      _addGymMarkersToMap();
-      if (gyms.isNotEmpty) {
-        _fitMapToGyms(gyms);
+      
+      // Update map markers
+      print('🗺️ Updating map with ${gyms.length} search results...');
+      await _addGymMarkersToMap();
+      
+      // Wait a bit for markers to be added
+      await Future.delayed(const Duration(milliseconds: 200));
+      
+      // Show feedback to user
+      if (mounted) {
+        if (gyms.isEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('No gyms found for "$query". Try a different search term.'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        } else {
+          print('✅ Found ${gyms.length} gyms for "$query"');
+        }
       }
     } catch (e) {
       setState(() {
         isLoading = false;
       });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error searching gyms: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
+  }
+  
+  // Helper method to detect location-based queries
+  bool _isLocationBasedQuery(String query) {
+    final queryLower = query.toLowerCase();
+    
+    // Common location indicators
+    final locationKeywords = [
+      'in ', 'at ', 'near ', 'around ', 'close to ', 'nearby ',
+      'kl', 'kuala lumpur', 'klcc', 'bukit bintang', 'mont kiara',
+      'bangsar', 'damansara', 'pj', 'petaling jaya', 'shah alam',
+      'subang', 'ampang', 'cheras', 'selangor', 'malaysia'
+    ];
+    
+    return locationKeywords.any((keyword) => queryLower.contains(keyword));
+  }
+  
+  // Helper method to extract location from query
+  String _extractLocationFromQuery(String query) {
+    final queryLower = query.toLowerCase();
+    
+    // Remove gym-related words and prepositions to get location
+    final wordsToRemove = [
+      'gym', 'gyms', 'fitness', 'fitness center', 'fitness centre',
+      'in ', 'at ', 'near ', 'around ', 'close to ', 'nearby ',
+    ];
+    
+    String cleanQuery = query;
+    for (final word in wordsToRemove) {
+      cleanQuery = cleanQuery.replaceAll(RegExp(word, caseSensitive: false), ' ');
+    }
+    
+    return cleanQuery.trim();
   }
 
   Future<void> _addGymMarkersToMap() async {
-    if (mapboxMap == null || annotationManager == null) return;
+    if (mapboxMap == null || annotationManager == null) {
+      print('❌ Map or annotation manager not available');
+      return;
+    }
+    
     try {
-      await annotationManager!.deleteAll();
-      // Use built-in marker icon
+      print('🗺️ Adding ${nearbyGyms.length} gym markers to map');
+      
+      // Clear existing markers with error handling
+      try {
+        await annotationManager!.deleteAll();
+        print('✅ Successfully cleared existing markers');
+      } catch (deleteError) {
+        print('⚠️ Warning: Could not clear existing markers: $deleteError');
+        // Continue anyway - we can still add new markers
+      }
+      
+      // Add user location marker if available
       if (currentPosition != null) {
-        final userMarkerOptions = PointAnnotationOptions(
-          geometry: Point(
-            coordinates: Position(
-              currentPosition!.longitude,
-              currentPosition!.latitude,
+        print('📍 Adding user location marker at: ${currentPosition!.latitude}, ${currentPosition!.longitude}');
+        try {
+          final userMarkerOptions = PointAnnotationOptions(
+            geometry: Point(
+              coordinates: Position(
+                currentPosition!.longitude,
+                currentPosition!.latitude,
+              ),
             ),
-          ),
-          iconImage: 'marker-15',
-          iconSize: 2.5,
-          textField: 'You are here',
-          textOffset: [0.0, 2.0],
-          textSize: 14.0,
-        );
-        await annotationManager!.create(userMarkerOptions);
+            iconImage: 'marker-15',
+            iconSize: 2.5,
+            textField: 'You are here',
+            textOffset: [0.0, 2.0],
+            textSize: 14.0,
+          );
+          await annotationManager!.create(userMarkerOptions);
+          print('✅ Added user location marker');
+        } catch (userMarkerError) {
+          print('⚠️ Warning: Could not add user location marker: $userMarkerError');
+        }
       }
+      
+      // Add gym markers
+      int markersAdded = 0;
       for (final gym in nearbyGyms) {
-        final gymMarkerOptions = PointAnnotationOptions(
-          geometry: Point(
-            coordinates: Position(
-              gym.longitude,
-              gym.latitude,
-            ),
-          ),
-          iconImage: 'marker-15',
-          iconSize: 2.0,
-          textField: gym.name,
-          textOffset: [0.0, 2.0],
-          textSize: 12.0,
-        );
-        await annotationManager!.create(gymMarkerOptions);
+        if (gym.latitude != 0.0 && gym.longitude != 0.0) {
+          print('🏋️ Adding gym marker: ${gym.name} at ${gym.latitude}, ${gym.longitude}');
+          try {
+            final gymMarkerOptions = PointAnnotationOptions(
+              geometry: Point(
+                coordinates: Position(
+                  gym.longitude,
+                  gym.latitude,
+                ),
+              ),
+              iconImage: 'marker-15',
+              iconSize: 2.0,
+              textField: gym.name,
+              textOffset: [0.0, 2.0],
+              textSize: 12.0,
+            );
+            await annotationManager!.create(gymMarkerOptions);
+            markersAdded++;
+          } catch (gymMarkerError) {
+            print('⚠️ Warning: Could not add marker for ${gym.name}: $gymMarkerError');
+          }
+        } else {
+          print('⚠️ Skipping gym ${gym.name} - invalid coordinates: ${gym.latitude}, ${gym.longitude}');
+        }
       }
-      annotationManager!.addOnPointAnnotationClickListener(
-        MyAnnotationClickListener(
-          nearbyGyms: nearbyGyms,
-          onGymSelected: _showGymDetails,
-        ),
-      );
+      
+      print('✅ Successfully added $markersAdded gym markers to map');
+      
+      // Add click listener
+      try {
+        annotationManager!.addOnPointAnnotationClickListener(
+          MyAnnotationClickListener(
+            nearbyGyms: nearbyGyms,
+            onGymSelected: _showGymDetails,
+          ),
+        );
+        print('✅ Added map click listener');
+      } catch (listenerError) {
+        print('⚠️ Warning: Could not add click listener: $listenerError');
+      }
+      
+      // Force map refresh
+      if (nearbyGyms.isNotEmpty) {
+        // Small delay to ensure markers are rendered
+        await Future.delayed(const Duration(milliseconds: 100));
+        print('📷 Fitting map to show ${nearbyGyms.length} gyms');
+        await _fitMapToGyms(nearbyGyms);
+      }
+      
     } catch (e) {
-      print('Error adding markers: $e');
+      print('❌ Error adding markers: $e');
+      print('Stack trace: ${StackTrace.current}');
     }
   }
 
@@ -397,6 +583,19 @@ class _GymFinderPageState extends State<GymFinderPage> {
           IconButton(
             icon: const Icon(Icons.refresh, color: Colors.white),
             onPressed: isLoading ? null : _getCurrentLocation,
+            tooltip: 'Refresh location',
+          ),
+          IconButton(
+            icon: const Icon(Icons.bug_report, color: Colors.white),
+            onPressed: isLoading ? null : () async {
+              print('🧪 DEBUG: Force refreshing map markers...');
+              await _addGymMarkersToMap();
+              print('🧪 DEBUG: Current gym count: ${nearbyGyms.length}');
+              if (nearbyGyms.isNotEmpty) {
+                print('🧪 DEBUG: First gym: ${nearbyGyms.first.name} at ${nearbyGyms.first.latitude}, ${nearbyGyms.first.longitude}');
+              }
+            },
+            tooltip: 'Debug map markers',
           ),
         ],
       ),
@@ -444,9 +643,18 @@ class _GymFinderPageState extends State<GymFinderPage> {
                   controller: _searchController,
                   style: const TextStyle(color: Colors.white),
                   decoration: InputDecoration(
-                    hintText: 'Search gyms...',
+                    hintText: 'Search gyms by name, location, or area...',
                     hintStyle: TextStyle(color: Colors.white.withOpacity(0.7)),
                     prefixIcon: Icon(Icons.search, color: Colors.white.withOpacity(0.7)),
+                    suffixIcon: _searchController.text.isNotEmpty
+                        ? IconButton(
+                            icon: Icon(Icons.clear, color: Colors.white.withOpacity(0.7)),
+                            onPressed: () {
+                              _searchController.clear();
+                              _onSearchChanged('');
+                            },
+                          )
+                        : null,
                     filled: true,
                     fillColor: Colors.white.withOpacity(0.1),
                     border: OutlineInputBorder(
@@ -454,6 +662,10 @@ class _GymFinderPageState extends State<GymFinderPage> {
                       borderSide: BorderSide.none,
                     ),
                   ),
+                  onChanged: (value) {
+                    setState(() {}); // Update UI to show/hide clear button
+                    _onSearchChanged(value);
+                  },
                   onSubmitted: (value) {
                     if (value.isNotEmpty) {
                       _searchGyms(value);
@@ -648,13 +860,26 @@ class _GymFinderPageState extends State<GymFinderPage> {
   }
 
   void _onSearchChanged(String value) {
-    if (value.isEmpty) {
-      if (currentPosition != null) {
-        _loadNearbyGyms(currentPosition!);
+    // Cancel previous timer
+    _idleTimer?.cancel();
+    
+    // Debounce the search to avoid too many API calls
+    _idleTimer = Timer(const Duration(milliseconds: 500), () {
+      if (value.trim().isEmpty) {
+        // If search is cleared, show nearby gyms
+        if (currentPosition != null) {
+          _loadNearbyGyms(currentPosition!);
+        }
+      } else {
+        // Perform search
+        _searchGyms(value.trim());
       }
-    } else {
-      _searchGyms(value);
-    }
+    });
+    
+    // Update search state immediately for UI feedback
+    setState(() {
+      isSearching = value.trim().isNotEmpty;
+    });
   }
 
   void _onMapCreated(MapboxMap mapboxMap) {

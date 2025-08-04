@@ -437,15 +437,18 @@ class _RegisterPageState extends State<RegisterPage> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Container(
-                          padding: const EdgeInsets.all(16),
+                          width: 80,
+                          height: 80,
                           decoration: const BoxDecoration(
-                            color: Color(0xFF212E83),
+                            color: Colors.white,
                             shape: BoxShape.circle,
                           ),
-                          child: const Icon(
-                            Icons.fitness_center,
-                            size: 48,
-                            color: Colors.white,
+                          child: Padding(
+                            padding: const EdgeInsets.all(4),
+                            child: Image.asset(
+                              'assets/images/gtfinder_login_logo.png',
+                              fit: BoxFit.contain,
+                            ),
                           ),
                         ),
                         const SizedBox(height: 24),

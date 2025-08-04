@@ -864,12 +864,15 @@ class _ExerciseCategoryPageState extends State<ExerciseCategoryPage> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
-                'Exercise Timer',
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
+              Expanded(
+                child: Text(
+                  'Exercise Timer',
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
               IconButton(
@@ -1247,11 +1250,12 @@ class _ExerciseCategoryPageState extends State<ExerciseCategoryPage> {
                         ),
                         const SizedBox(height: 24),
                         Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                           children: [
-                            _buildIntensityButton('Low', _selectedIntensity == 'Low'),
-                            _buildIntensityButton('Medium', _selectedIntensity == 'Medium'),
-                            _buildIntensityButton('High', _selectedIntensity == 'High'),
+                            Expanded(child: _buildIntensityButton('Low', _selectedIntensity == 'Low')),
+                            const SizedBox(width: 8),
+                            Expanded(child: _buildIntensityButton('Medium', _selectedIntensity == 'Medium')),
+                            const SizedBox(width: 8),
+                            Expanded(child: _buildIntensityButton('High', _selectedIntensity == 'High')),
                           ],
                         ),
                         const SizedBox(height: 24),
@@ -1274,12 +1278,15 @@ class _ExerciseCategoryPageState extends State<ExerciseCategoryPage> {
                               Row(
                                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                 children: [
-                                  const Text(
-                                    'Select Duration',
-                                    style: TextStyle(
-                                      fontSize: 24,
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.white,
+                                  Expanded(
+                                    child: Text(
+                                      'Select Duration',
+                                      style: TextStyle(
+                                        fontSize: 24,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.white,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
                                     ),
                                   ),
                                   Text(
@@ -1315,7 +1322,7 @@ class _ExerciseCategoryPageState extends State<ExerciseCategoryPage> {
                         
                         // Sets and Reps Section
                         Container(
-                          padding: const EdgeInsets.all(24),
+                          padding: const EdgeInsets.all(18),
                           decoration: BoxDecoration(
                             color: Colors.white.withOpacity(0.1),
                             borderRadius: BorderRadius.circular(24),
@@ -1361,20 +1368,23 @@ class _ExerciseCategoryPageState extends State<ExerciseCategoryPage> {
                               Row(
                                 children: [
                                   Expanded(
+                                    flex: 1,
                                     child: Column(
                                       crossAxisAlignment: CrossAxisAlignment.start,
+                                      mainAxisSize: MainAxisSize.min,
                                       children: [
                                         Text(
                                           'Number of Sets',
                                           style: TextStyle(
                                             color: Colors.white.withOpacity(0.8),
-                                            fontSize: 16,
+                                            fontSize: 14,
                                             fontWeight: FontWeight.w500,
                                           ),
+                                          overflow: TextOverflow.ellipsis,
                                         ),
                                         const SizedBox(height: 8),
                                         Container(
-                                          padding: const EdgeInsets.all(16),
+                                          padding: const EdgeInsets.all(10),
                                           decoration: BoxDecoration(
                                             color: Colors.white.withOpacity(0.1),
                                             borderRadius: BorderRadius.circular(12),
@@ -1392,13 +1402,15 @@ class _ExerciseCategoryPageState extends State<ExerciseCategoryPage> {
                                                     });
                                                   }
                                                 },
-                                                icon: const Icon(Icons.remove, color: Colors.white),
+                                                icon: const Icon(Icons.remove, color: Colors.white, size: 18),
+                                                padding: const EdgeInsets.all(2),
+                                                constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
                                               ),
                                               Text(
                                                 '$_numberOfSets',
                                                 style: const TextStyle(
                                                   color: Colors.white,
-                                                  fontSize: 24,
+                                                  fontSize: 22,
                                                   fontWeight: FontWeight.bold,
                                                 ),
                                               ),
@@ -1409,7 +1421,9 @@ class _ExerciseCategoryPageState extends State<ExerciseCategoryPage> {
                                                     _calculateTotalReps();
                                                   });
                                                 },
-                                                icon: const Icon(Icons.add, color: Colors.white),
+                                                icon: const Icon(Icons.add, color: Colors.white, size: 18),
+                                                padding: const EdgeInsets.all(2),
+                                                constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
                                               ),
                                             ],
                                           ),
@@ -1417,35 +1431,40 @@ class _ExerciseCategoryPageState extends State<ExerciseCategoryPage> {
                                       ],
                                     ),
                                   ),
-                                  const SizedBox(width: 20),
+                                  const SizedBox(width: 4),
                                   
                                   // Reps per Set
                                   Expanded(
+                                    flex: 1,
                                     child: Column(
                                       crossAxisAlignment: CrossAxisAlignment.start,
+                                      mainAxisSize: MainAxisSize.min,
                                       children: [
                                         Row(
                                           children: [
-                                            Text(
-                                              'Reps per Set',
-                                              style: TextStyle(
-                                                color: Colors.white.withOpacity(0.8),
-                                                fontSize: 16,
-                                                fontWeight: FontWeight.w500,
+                                            Expanded(
+                                              child: Text(
+                                                'Reps per Set',
+                                                style: TextStyle(
+                                                  color: Colors.white.withOpacity(0.8),
+                                                  fontSize: 14,
+                                                  fontWeight: FontWeight.w500,
+                                                ),
+                                                overflow: TextOverflow.ellipsis,
                                               ),
                                             ),
-                                            const SizedBox(width: 8),
+                                            const SizedBox(width: 2),
                                             Container(
-                                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                              padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 1),
                                               decoration: BoxDecoration(
                                                 color: Colors.blue.withOpacity(0.3),
-                                                borderRadius: BorderRadius.circular(8),
+                                                borderRadius: BorderRadius.circular(6),
                                               ),
                                               child: Text(
                                                 'Auto',
                                                 style: TextStyle(
                                                   color: Colors.blue,
-                                                  fontSize: 10,
+                                                  fontSize: 8,
                                                   fontWeight: FontWeight.bold,
                                                 ),
                                               ),
@@ -1459,10 +1478,11 @@ class _ExerciseCategoryPageState extends State<ExerciseCategoryPage> {
                                             color: Colors.white.withOpacity(0.6),
                                             fontSize: 12,
                                           ),
+                                          overflow: TextOverflow.ellipsis,
                                         ),
                                         const SizedBox(height: 8),
                                         Container(
-                                          padding: const EdgeInsets.all(16),
+                                          padding: const EdgeInsets.all(10),
                                           decoration: BoxDecoration(
                                             color: Colors.blue.withOpacity(0.1),
                                             borderRadius: BorderRadius.circular(12),
@@ -1474,15 +1494,18 @@ class _ExerciseCategoryPageState extends State<ExerciseCategoryPage> {
                                               Icon(
                                                 Icons.auto_awesome,
                                                 color: Colors.blue,
-                                                size: 20,
+                                                size: 14,
                                               ),
-                                              const SizedBox(width: 12),
-                                              Text(
-                                                '${_getRepRangeForDisplay(_selectedIntensity)}',
-                                                style: const TextStyle(
-                                                  color: Colors.blue,
-                                                  fontSize: 24,
-                                                  fontWeight: FontWeight.bold,
+                                              const SizedBox(width: 4),
+                                              Flexible(
+                                                child: Text(
+                                                  '${_getRepRangeForDisplay(_selectedIntensity)}',
+                                                  style: const TextStyle(
+                                                    color: Colors.blue,
+                                                    fontSize: 18,
+                                                    fontWeight: FontWeight.bold,
+                                                  ),
+                                                  overflow: TextOverflow.ellipsis,
                                                 ),
                                               ),
                                             ],
@@ -1499,7 +1522,7 @@ class _ExerciseCategoryPageState extends State<ExerciseCategoryPage> {
                               // Total Reps Display
                               Container(
                                 width: double.infinity,
-                                padding: const EdgeInsets.all(20),
+                                padding: const EdgeInsets.all(16),
                                 decoration: BoxDecoration(
                                   color: Colors.green.withOpacity(0.2),
                                   borderRadius: BorderRadius.circular(16),
@@ -1524,6 +1547,7 @@ class _ExerciseCategoryPageState extends State<ExerciseCategoryPage> {
                                               fontSize: 14,
                                               fontWeight: FontWeight.w500,
                                             ),
+                                            overflow: TextOverflow.ellipsis,
                                           ),
                                           Text(
                                             '$_totalReps',
@@ -1536,12 +1560,15 @@ class _ExerciseCategoryPageState extends State<ExerciseCategoryPage> {
                                         ],
                                       ),
                                     ),
-                                    Text(
-                                      '$_numberOfSets × $_repsPerSet',
-                                      style: TextStyle(
-                                        color: Colors.green.withOpacity(0.8),
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w500,
+                                    Flexible(
+                                      child: Text(
+                                        '$_numberOfSets × $_repsPerSet',
+                                        style: TextStyle(
+                                          color: Colors.green.withOpacity(0.8),
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
                                       ),
                                     ),
                                   ],
@@ -1553,7 +1580,7 @@ class _ExerciseCategoryPageState extends State<ExerciseCategoryPage> {
                               // Calories Display
                               Container(
                                 width: double.infinity,
-                                padding: const EdgeInsets.all(20),
+                                padding: const EdgeInsets.all(16),
                                 decoration: BoxDecoration(
                                   color: Colors.orange.withOpacity(0.2),
                                   borderRadius: BorderRadius.circular(16),
@@ -1578,6 +1605,7 @@ class _ExerciseCategoryPageState extends State<ExerciseCategoryPage> {
                                               fontSize: 14,
                                               fontWeight: FontWeight.w500,
                                             ),
+                                            overflow: TextOverflow.ellipsis,
                                           ),
                                           Text(
                                             '$_currentEstimatedCalories',
@@ -1590,26 +1618,30 @@ class _ExerciseCategoryPageState extends State<ExerciseCategoryPage> {
                                         ],
                                       ),
                                     ),
-                                    Column(
-                                      crossAxisAlignment: CrossAxisAlignment.end,
-                                      children: [
-                                        Text(
-                                          'Volume: $_totalReps reps',
-                                          style: TextStyle(
-                                            color: Colors.orange.withOpacity(0.8),
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.w500,
+                                    Flexible(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.end,
+                                        children: [
+                                          Text(
+                                            'Volume: $_totalReps reps',
+                                            style: TextStyle(
+                                              color: Colors.orange.withOpacity(0.8),
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                            overflow: TextOverflow.ellipsis,
                                           ),
-                                        ),
-                                        Text(
-                                          'Duration: ${_duration.round()} min',
-                                          style: TextStyle(
-                                            color: Colors.orange.withOpacity(0.8),
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.w500,
+                                          Text(
+                                            'Duration: ${_duration.round()} min',
+                                            style: TextStyle(
+                                              color: Colors.orange.withOpacity(0.8),
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                            overflow: TextOverflow.ellipsis,
                                           ),
-                                        ),
-                                      ],
+                                        ],
+                                      ),
                                     ),
                                   ],
                                 ),
@@ -1716,6 +1748,7 @@ class _ExerciseCategoryPageState extends State<ExerciseCategoryPage> {
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
               ),
+              overflow: TextOverflow.ellipsis,
             ),
             const SizedBox(height: 4),
             Text(
@@ -1724,6 +1757,7 @@ class _ExerciseCategoryPageState extends State<ExerciseCategoryPage> {
                 color: isSelected ? Colors.blue.withOpacity(0.8) : Colors.white.withOpacity(0.7),
                 fontSize: 12,
               ),
+              overflow: TextOverflow.ellipsis,
             ),
           ],
         ),

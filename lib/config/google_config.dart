@@ -1,3 +1,3 @@
 class GoogleConfig {
-  static const String apiKey = 'AIzaSyBThzJDZhjC46wJffkYVe_JxJVrLKvS3ac';
+  static const String apiKey = 'AIzaSyAC4oiy2PNujskUJoPY_rGYIBA6Ph_dii8';
 } 

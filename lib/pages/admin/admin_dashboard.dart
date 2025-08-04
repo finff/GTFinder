@@ -658,9 +658,9 @@ class _AdminDashboardState extends State<AdminDashboard> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               const Text(
-                'No payments to release',
-                style: TextStyle(color: Colors.white, fontSize: 16),
-              ),
+              'No payments to release',
+              style: TextStyle(color: Colors.white, fontSize: 16),
+            ),
               const SizedBox(height: 16),
               ElevatedButton.icon(
                 onPressed: () {
@@ -684,7 +684,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
           children: [
             // Debug info and refresh button
             Container(
-              padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(16),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -708,68 +708,68 @@ class _AdminDashboardState extends State<AdminDashboard> {
             Expanded(
               child: ListView.builder(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
-                itemCount: payments.length,
-                itemBuilder: (context, index) {
-                  final payment = payments[index];
-                  final amount = payment['amount']?.toDouble() ?? 0.0;
-                  final userName = payment['userName'] ?? 'Unknown User';
-                  final trainerName = payment['trainerName'] ?? 'Unknown Trainer';
-                  final bookingDateTime = payment['formattedDateTime'] ?? 'Unknown Date';
-                  final createdAt = payment['createdAt'] as Timestamp?;
+          itemCount: payments.length,
+          itemBuilder: (context, index) {
+            final payment = payments[index];
+            final amount = payment['amount']?.toDouble() ?? 0.0;
+            final userName = payment['userName'] ?? 'Unknown User';
+            final trainerName = payment['trainerName'] ?? 'Unknown Trainer';
+            final bookingDateTime = payment['formattedDateTime'] ?? 'Unknown Date';
+            final createdAt = payment['createdAt'] as Timestamp?;
 
-                  return Container(
-                    margin: const EdgeInsets.only(bottom: 12),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(16),
+            return Container(
+              margin: const EdgeInsets.only(bottom: 12),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: ListTile(
+                contentPadding: const EdgeInsets.all(16),
+                title: Text(
+                  'RM ${amount.toStringAsFixed(2)}',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                subtitle: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const SizedBox(height: 8),
+                    Text(
+                      'User: $userName',
+                      style: TextStyle(color: Colors.blue.shade100),
                     ),
-                    child: ListTile(
-                      contentPadding: const EdgeInsets.all(16),
-                      title: Text(
-                        'RM ${amount.toStringAsFixed(2)}',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      subtitle: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const SizedBox(height: 8),
-                          Text(
-                            'User: $userName',
-                            style: TextStyle(color: Colors.blue.shade100),
-                          ),
-                          Text(
-                            'Trainer: $trainerName',
-                            style: TextStyle(color: Colors.blue.shade100),
-                          ),
-                          Text(
-                            'Session: $bookingDateTime',
-                            style: TextStyle(color: Colors.blue.shade100),
-                          ),
-                          if (createdAt != null)
-                            Text(
-                              'Held since: ${_formatDate(createdAt.toDate())}',
-                              style: TextStyle(color: Colors.blue.shade100, fontSize: 12),
-                            ),
-                        ],
-                      ),
-                      trailing: ElevatedButton(
-                        onPressed: () => _showReleasePaymentDialog(payment),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.green.shade700,
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        ),
-                        child: const Text('Release'),
-                      ),
+                    Text(
+                      'Trainer: $trainerName',
+                      style: TextStyle(color: Colors.blue.shade100),
                     ),
-                  );
-                },
+                    Text(
+                      'Session: $bookingDateTime',
+                      style: TextStyle(color: Colors.blue.shade100),
+                    ),
+                    if (createdAt != null)
+                      Text(
+                        'Held since: ${_formatDate(createdAt.toDate())}',
+                        style: TextStyle(color: Colors.blue.shade100, fontSize: 12),
+                      ),
+                  ],
+                ),
+                trailing: ElevatedButton(
+                  onPressed: () => _showReleasePaymentDialog(payment),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green.shade700,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  child: const Text('Release'),
+                ),
+              ),
+            );
+          },
               ),
             ),
           ],

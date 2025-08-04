@@ -16,11 +16,22 @@ class PlacesService {
         '&key=${GoogleConfig.apiKey}'
       );
 
+      print('🔍 Google Places API Request: $url');
       final response = await http.get(url);
+      print('📡 Google Places API Response Status: ${response.statusCode}');
       
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
+        print('📍 Google Places API Response: ${data.toString()}');
+        
+        // Check for API errors
+        if (data['status'] != 'OK' && data['status'] != 'ZERO_RESULTS') {
+          print('❌ Google Places API Error: ${data['status']} - ${data['error_message'] ?? 'No error message'}');
+          return [];
+        }
+        
         final results = data['results'] as List;
+        print('🏋️ Found ${results.length} gyms from Google Places API within ${radius}m radius');
         
         return Future.wait(results.map((place) async {
           final location = place['geometry']['location'];

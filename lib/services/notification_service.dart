@@ -351,10 +351,10 @@ class NotificationService {
     required double amount,
     required String bookingId,
   }) async {
-          await createNotification(
-        userId: trainerId,
-        title: 'Payment Released',
-        body: 'RM ${amount.toStringAsFixed(2)} from $userName has been released to your account.',
+    await createNotification(
+      userId: trainerId,
+      title: 'Payment Released',
+      body: 'RM ${amount.toStringAsFixed(2)} from $userName has been released to your account.',
       type: NotificationType.paymentReleased,
       data: {
         'paymentType': 'released',
