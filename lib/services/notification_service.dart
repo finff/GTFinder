@@ -709,6 +709,30 @@ class NotificationService {
       print('Error creating payment released to trainer notification: $e');
     }
   }
+
+  /// Send direct message notification for chat
+  Future<void> sendDirectMessage({
+    required String recipientId,
+    required String title,
+    required String body,
+    Map<String, dynamic>? data,
+  }) async {
+    try {
+      // Create a notification in Firestore
+      await createNotification(
+        userId: recipientId,
+        title: title,
+        body: body,
+        type: NotificationType.general,
+        data: data ?? {},
+        senderName: 'Chat',
+      );
+
+      print('✅ Chat notification sent to: $recipientId');
+    } catch (e) {
+      print('❌ Error sending chat notification: $e');
+    }
+  }
 }
 
 // This needs to be a top-level function

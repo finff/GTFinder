@@ -8,6 +8,7 @@ import 'dart:async';
 import '../user/user_landing_page.dart';
 import 'package:flutter/services.dart';
 import '../../services/notification_service.dart';
+import '../../services/chat_service.dart';
 import '../../widgets/profile_image_widget.dart';
 
 class PaymentPage extends StatefulWidget {
@@ -415,6 +416,14 @@ class _PaymentPageState extends State<PaymentPage> {
         amount: widget.amount,
         bookingId: widget.bookingId,
       );
+
+      // Create conversation for chat between user and trainer
+      try {
+        await _createConversation(userId, userName);
+      } catch (e) {
+        print('Error creating conversation: $e');
+        // Don't fail the payment process if chat creation fails
+      }
     } catch (e) {
       print('Error updating Firestore: $e');
       // Don't throw the error as payment was successful
@@ -706,6 +715,22 @@ class _PaymentPageState extends State<PaymentPage> {
         ),
       ],
     );
+  }
+
+  Future<void> _createConversation(String userId, String userName) async {
+    try {
+      await ChatService.createConversation(
+        bookingId: widget.bookingId,
+        userId: userId,
+        userName: userName,
+        trainerId: widget.trainerId,
+        trainerName: widget.trainerName,
+      );
+      print('✅ Chat conversation created for booking: ${widget.bookingId}');
+    } catch (e) {
+      print('❌ Failed to create conversation: $e');
+      throw e;
+    }
   }
 }
  

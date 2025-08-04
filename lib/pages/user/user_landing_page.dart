@@ -12,6 +12,7 @@ import '../../widgets/notification_badge.dart';
 import 'calorie_sharing_page.dart';
 import '../../services/notification_service.dart';
 import '../shared/notification_page.dart';
+import '../shared/conversations_page.dart';
 import '../../widgets/profile_image_widget.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
@@ -254,6 +255,12 @@ class _UserLandingPageState extends State<UserLandingPage> {
                                   'Calorie Sharing',
                                   Icons.share_outlined,
                                   () => _navigateToPage(const CalorieSharingPage()),
+                                ),
+                                _buildActionCard(
+                                  context,
+                                  'Messages',
+                                  Icons.chat_bubble_outline,
+                                  () => _navigateToPage(const ConversationsPage(isTrainer: false)),
                                 ),
                               ],
                             ),

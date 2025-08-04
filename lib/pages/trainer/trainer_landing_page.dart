@@ -12,6 +12,7 @@ import '../../widgets/calories_burn_box.dart';
 import '../../widgets/notification_badge.dart';
 import 'calorie_sharing_page.dart';
 import '../shared/notification_page.dart';
+import '../shared/conversations_page.dart';
 import '../../services/trainer_location_service.dart';
 import '../../widgets/profile_image_widget.dart';
 
@@ -180,6 +181,11 @@ class _TrainerLandingPageState extends State<TrainerLandingPage> {
       Navigator.push(
         context,
         MaterialPageRoute(builder: (context) => const PaymentsPage()),
+      );
+    } else if (route == '/trainer/messages') {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => const ConversationsPage(isTrainer: true)),
       );
     }
   }
@@ -418,6 +424,12 @@ class _TrainerLandingPageState extends State<TrainerLandingPage> {
                                 'Calorie Sharing',
                                 Icons.share,
                                 () => _navigateToPage(context, '/trainer/calorie_sharing'),
+                              ),
+                              _buildActionCard(
+                                context,
+                                'Messages',
+                                Icons.chat_bubble_outline,
+                                () => _navigateToPage(context, '/trainer/messages'),
                               ),
                             ],
                           ),

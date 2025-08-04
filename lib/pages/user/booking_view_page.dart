@@ -3,6 +3,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'payment_page.dart';
 import '../../widgets/profile_image_widget.dart';
+import '../../services/chat_service.dart';
+import '../shared/chat_page.dart';
+import '../../models/conversation.dart';
 import 'package:intl/intl.dart';
 
 class BookingViewPage extends StatelessWidget {
@@ -343,6 +346,27 @@ class BookingViewPage extends StatelessWidget {
                                           ),
                                         ),
                                       ),
+                                    // Chat button for confirmed/completed bookings
+                                    if ((status == 'confirmed' || status == 'completed') && paymentStatus == 'paid_held')
+                                      Padding(
+                                        padding: const EdgeInsets.only(top: 8),
+                                        child: SizedBox(
+                                          width: double.infinity,
+                                          child: ElevatedButton.icon(
+                                            onPressed: () => _openChat(context, bookingDoc.id, booking['trainerId'], trainerName),
+                                            icon: const Icon(Icons.chat_bubble_outline, size: 20),
+                                            label: const Text('Chat with Trainer'),
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor: Colors.blue.shade400,
+                                              foregroundColor: Colors.white,
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius: BorderRadius.circular(8),
+                                              ),
+                                              padding: const EdgeInsets.symmetric(vertical: 12),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
                                   ],
                                 ),
                               ),
@@ -384,5 +408,40 @@ class BookingViewPage extends StatelessWidget {
         ),
       ],
     );
+  }
+
+  Future<void> _openChat(BuildContext context, String bookingId, String trainerId, String trainerName) async {
+    try {
+      // Try to find existing conversation for this booking
+      final conversation = await ChatService.getConversationByBookingId(bookingId);
+      
+      if (conversation != null) {
+        // Open existing conversation
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => ChatPage(
+              conversation: conversation,
+              isTrainer: false,
+            ),
+          ),
+        );
+      } else {
+        // Show message that chat is not available (shouldn't happen if booking is confirmed)
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Chat is not available for this booking'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error opening chat: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 } 
