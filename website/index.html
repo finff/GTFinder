@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="GTFinder helps people find gyms, book trainers, track calories, and manage fitness sessions in one app.">
+    <title>GTFinder | Gym and Trainer Finder</title>
+    <link rel="icon" href="../assets/images/gtfinder_logo.png">
+    <link rel="stylesheet" href="style.css">
+  </head>
+  <body>
+    <header class="site-header" data-header>
+      <a class="brand" href="#top" aria-label="GTFinder home">
+        <img src="../assets/images/gtfinder_logo.png" alt="" class="brand__mark">
+        <span>GTFinder</span>
+      </a>
+      <button class="nav-toggle" type="button" aria-label="Open navigation" aria-expanded="false" data-nav-toggle>
+        <span></span>
+        <span></span>
+      </button>
+      <nav class="site-nav" data-nav>
+        <a href="#find">Find Gyms</a>
+        <a href="#trainers">Trainers</a>
+        <a href="#tools">Tools</a>
+        <a href="#roles">Roles</a>
+      </nav>
+    </header>
+
+    <main id="top">
+      <section class="hero">
+        <div class="hero__content">
+          <p class="eyebrow">Fitness discovery for Malaysia</p>
+          <h1>GTFinder</h1>
+          <p class="hero__copy">
+            Find nearby gyms, book personal trainers, track workouts, manage payments, and keep every fitness conversation in one place.
+          </p>
+          <div class="hero__actions">
+            <a class="button button--primary" href="#find">Explore Features</a>
+            <a class="button button--ghost" href="#roles">View App Roles</a>
+          </div>
+        </div>
+
+        <div class="app-preview" aria-label="GTFinder app preview">
+          <div class="phone-shell">
+            <div class="phone-top">
+              <span></span>
+            </div>
+            <div class="app-card app-card--welcome">
+              <img src="../assets/images/gtfinder_login_logo.png" alt="" class="app-logo">
+              <div>
+                <span>Welcome back</span>
+                <strong>Gym Explorer</strong>
+              </div>
+            </div>
+            <div class="stats-row">
+              <div>
+                <strong>428</strong>
+                <span>kcal</span>
+              </div>
+              <div>
+                <strong>3.2km</strong>
+                <span>nearest</span>
+              </div>
+            </div>
+            <div class="map-panel">
+              <span class="pin pin--one"></span>
+              <span class="pin pin--two"></span>
+              <span class="pin pin--three"></span>
+              <div class="route-line"></div>
+            </div>
+            <div class="gym-result">
+              <div>
+                <strong>KL Fitness Hub</strong>
+                <span>Open now - 4.8 rating</span>
+              </div>
+              <button type="button" aria-label="Navigate to gym">-&gt;</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section section--light" id="find">
+        <div class="section__intro">
+          <p class="eyebrow">Gym finder</p>
+          <h2>Search, compare, and navigate to nearby gyms.</h2>
+          <p>GTFinder combines location search, map results, ratings, distance filters, and gym details so users can choose a place to train with less friction.</p>
+        </div>
+        <div class="feature-grid">
+          <article class="feature-card">
+            <span class="feature-icon">GPS</span>
+            <h3>Nearby discovery</h3>
+            <p>Find gyms around the current location, Kuala Lumpur fallback, or searched Malaysian areas.</p>
+          </article>
+          <article class="feature-card">
+            <span class="feature-icon">MAP</span>
+            <h3>Map and list views</h3>
+            <p>Switch between map pins and grouped distance lists for fast browsing.</p>
+          </article>
+          <article class="feature-card">
+            <span class="feature-icon">GO</span>
+            <h3>Navigation ready</h3>
+            <p>Launch directions to the selected gym with one tap from the details view.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="section section--split" id="trainers">
+        <div class="panel-copy">
+          <p class="eyebrow">Trainer booking</p>
+          <h2>Connect users and trainers around real schedules.</h2>
+          <p>Users can find trainers, book sessions, review bookings, chat, and receive notifications. Trainers can manage clients, schedules, payments, and active location status.</p>
+        </div>
+        <div class="schedule-board" aria-label="Example trainer schedule">
+          <div class="schedule-board__header">
+            <strong>Today</strong>
+            <span>Trainer schedule</span>
+          </div>
+          <div class="session session--active">
+            <span>09:00</span>
+            <strong>Strength coaching</strong>
+            <em>Confirmed</em>
+          </div>
+          <div class="session">
+            <span>12:30</span>
+            <strong>Mobility session</strong>
+            <em>Pending</em>
+          </div>
+          <div class="session">
+            <span>18:00</span>
+            <strong>Weight training</strong>
+            <em>Paid</em>
+          </div>
+        </div>
+      </section>
+
+      <section class="section section--dark" id="tools">
+        <div class="section__intro">
+          <p class="eyebrow">Training tools</p>
+          <h2>More than a location app.</h2>
+        </div>
+        <div class="tool-list">
+          <div class="tool-item">
+            <strong>Exercise module</strong>
+            <span>Users and trainers access workout content and guided exercise support.</span>
+          </div>
+          <div class="tool-item">
+            <strong>Calories and sharing</strong>
+            <span>Track calories burned and share progress between users and trainers.</span>
+          </div>
+          <div class="tool-item">
+            <strong>Messages and alerts</strong>
+            <span>Chat, notification badges, daily reminders, and admin announcements keep everyone aligned.</span>
+          </div>
+          <div class="tool-item">
+            <strong>Payments and refunds</strong>
+            <span>Trainer payments, booking releases, and refund oversight are built into the workflow.</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="section section--light" id="roles">
+        <div class="section__intro">
+          <p class="eyebrow">Role-based app</p>
+          <h2>Purpose-built dashboards for every user type.</h2>
+        </div>
+        <div class="role-grid">
+          <article class="role-card">
+            <h3>Members</h3>
+            <p>Find gyms, book trainers, view sessions, manage profiles, track calories, and message trainers.</p>
+          </article>
+          <article class="role-card">
+            <h3>Trainers</h3>
+            <p>Manage clients, schedules, payments, profile details, calorie sharing, and live location status.</p>
+          </article>
+          <article class="role-card">
+            <h3>Admins</h3>
+            <p>Monitor users, trainers, payments, refunds, analytics, announcements, and platform settings.</p>
+          </article>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div>
+        <strong>GTFinder</strong>
+        <span>Gym discovery, trainer booking, and fitness management.</span>
+      </div>
+      <a href="#top">Back to top</a>
+    </footer>
+
+    <script src="script.js"></script>
+  </body>
+</html>
