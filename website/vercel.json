@@ -1,0 +1,24 @@
+{
+  "rewrites": [
+    {
+      "source": "/create-payment-intent",
+      "destination": "/api/create-payment-intent"
+    },
+    {
+      "source": "/capture-payment-intent",
+      "destination": "/api/capture-payment-intent"
+    },
+    {
+      "source": "/payment-intent-status",
+      "destination": "/api/payment-intent-status"
+    },
+    {
+      "source": "/cancel-payment-intent",
+      "destination": "/api/cancel-payment-intent"
+    },
+    {
+      "source": "/refund-payment",
+      "destination": "/api/refund-payment"
+    }
+  ]
+}
